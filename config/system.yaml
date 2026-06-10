@@ -1,0 +1,37 @@
+# ==============================================================================
+# TradeCouncil 技術設定(system.yaml)
+#
+# ここに書けるのは「技術設定」のみ。運用ポリシー(リスク上限・レバレッジ・
+# ゲート基準など決裁事項)は config/policies/ のポリシーレジストリで管理し、
+# このファイルに書いてはならない(不変条項5: No Policy, No Trade)。
+# ==============================================================================
+
+db:
+  # プロジェクトルートからの相対パス
+  path: var/tradecouncil.db
+
+runtime:
+  kill_flag: var/run/KILL
+  log_dir: var/logs
+  heartbeat_interval_sec: 30
+  watchdog_stale_sec: 120
+
+paper:
+  # ペーパー約定モデル(執行シミュレーションの技術パラメータ)
+  fee_bps: 10          # 手数料 0.10%
+  slippage_bps: 5      # スリッページ 0.05%
+  initial_balance_jpy: 1000000   # ペーパー口座の初期残高(仮想資金)
+
+feed:
+  # ダミーBOT用価格フィード: random_walk | public_rest(Phase 1 で実装予定)
+  type: random_walk
+  random_walk:
+    start_price: 10000000   # BTC/JPY 想定の開始価格
+    drift_bps_per_bar: 0
+    vol_bps_per_bar: 20     # 1バーあたり標準偏差 0.2%
+    bar_interval_sec: 60
+    seed: null              # null = 起動毎にランダム / テストでは固定する
+
+notify:
+  # Discord Webhook URL は .env(DISCORD_WEBHOOK_URL)から読む。ここに書かない
+  min_severity: info        # info | warning | critical

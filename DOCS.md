@@ -1,0 +1,210 @@
+# TradeCouncil — 仕様・運用ガイド(包括リファレンス)
+
+マルチエージェント自動売買ガバナンス・フレームワークの実装・運用の包括ドキュメント。
+
+> **このドキュメントの位置づけ**
+> - 正式仕様の**一次資料は `docs/01〜03`**(要件定義書・基本設計書・運営規程)。本書は
+>   「実装された現在の姿」を一望するためのガイドであり、docs/ と乖離させない
+> - `README.md` — クイックスタート / `CLAUDE.md` — AI が従うルーター+開発規約
+> - `REQUIREMENTS.md` / `FEATURES.md` / `TESTCASES.md` — 管理表(要件↔機能↔検証)
+> - 設計書からの意図的な逸脱は `docs/adr/0001-phase0-windows-cli.md` に記録
+
+---
+
+## 目次
+
+1. [コンセプト](#1-コンセプト)
+2. [三層アーキテクチャと発注経路](#2-三層アーキテクチャと発注経路)
+3. [ガバナンス(中核)](#3-ガバナンス中核)
+4. [ペルソナ(8名)](#4-ペルソナ8名)
+5. [シナリオ](#5-シナリオ)
+6. [リスク管理と fail-closed](#6-リスク管理と-fail-closed)
+7. [データ設計(遡及性)](#7-データ設計遡及性)
+8. [CLI リファレンス](#8-cli-リファレンス)
+9. [セットアップと運用手順](#9-セットアップと運用手順)
+10. [LLMバックエンドと SharePoint](#10-llmバックエンドと-sharepoint)
+11. [既知の制約](#11-既知の制約)
+12. [ロードマップ](#12-ロードマップ)
+
+---
+
+## 1. コンセプト
+
+### 何を解決するのか
+
+自動売買の運用ルール(リスク上限・レバレッジ・戦略配分)は、誰かが恣意的に変えられる限り
+安全ではない。本フレームワークは:
+
+- **提案・審議はエージェント(ペルソナ会議)**、**決裁は利用者ただ一人**に分離する(三権分離)
+- 決裁を経ない変更が**構造的に不可能**(コード上の経路が存在しない)
+- すべての決定・注文が**監査ログ**として遡及可能
+- ルールが決まっていない領域は**取引しない**(No Policy, No Trade)
+
+### MAGI からの継承
+
+意思決定会議は MAGI 合議システム(prototype/)のオーケストレーション様式
+(ファシリテーター + 人格サブエージェント + シナリオプロトコル)で動く。
+MAGI の3人格と4シナリオ(合議・資料レビュー・ブレスト・人格テスト)もルートでそのまま使える。
+
+## 2. 三層アーキテクチャと発注経路
+
+| 層 | 内容 | 実装状態 |
+|---|---|---|
+| L1 実行層(常駐・決定的) | BOT・リスクガード・執行・DB・通知・監視 | **Phase 0 実装済**(paper のみ) |
+| L2 知能層(LLM API) | ニュース3段フィルタ、戦略会議の自動実行 | Phase 2〜3(未実装) |
+| L3 改善層(Claude Code) | 週次/月次レビュー、改善提案、**意思決定会議** | 会議のみ実装済(シナリオとして) |
+
+### 発注経路(これ以外の経路は存在しない)
+
+```
+戦略.on_bar() → StrategyIntent
+  → trade_decisions 起票(根拠の記録 — 必須)
+  → RiskGuard.check()(11段チェック・唯一の関門)→ RiskApprovedOrder(guard だけが生成可能)
+  → Executor.submit()(RiskApprovedOrder 型のみ受理・冪等性キーで二重発注防止)
+  → BrokerAdapter(paper)→ orders / fills / positions / pnl_daily に1トランザクションで記録
+```
+
+- bots/ は core.exchange / core.execution を import できない(テストで検査)
+- 拒否も orders に status=rejected + reason_code で記録される(監査の一元化)
+
+## 3. ガバナンス(中核)
+
+### 三権分離(docs/02 §1.5.1)
+
+| 権限 | 保有者 |
+|---|---|
+| 提案権 | エージェント・実績データ・利用者(何でも提案できる) |
+| 審議権 | ペルソナ会議(risk_manager の veto は審議差し戻し) |
+| **決裁権** | **利用者のみ**(`decided_by: owner` 以外をシステムが拒否する) |
+
+### 不変条項(会議の議題にできない)
+
+①決裁権は利用者のみ ②LLM非執行 ③全決定の監査ログ ④キルスイッチ ⑤fail-closed
+
+### ポリシーレジストリ(`config/policies/`)
+
+- 全運用ルールを `P-XX_<title>.yaml` で管理。ライフサイクル `draft→proposed→approved→active→retired`
+- システムは **active かつ effective_from 到来**のものだけを読む
+- 変更は `python -m scripts.cli policy record --file <決裁レコード>` のみ
+  (手編集は hooks + pre-commit が検出)。決裁履歴は DB(policy_decisions)に**不滅**
+- ロールバック = 旧値の再決裁(バージョンは進む。履歴は消えない)
+- `config/generated/` は確認用の自動生成ビュー(`policy sync`)。システム本体はレジストリを直接読む
+
+### decision_gate(提案の3分岐)
+
+1. 不変条項に抵触 → **reject** + incident + 警告
+2. P-01 の委任範囲内 → 検証して**自動適用** + 事後報告(初期値: 委任なし)
+3. それ以外 → **決裁キュー**(proposals)へ回送 → `approve / reject / defer` で利用者が決裁
+
+P-01 自体の変更は委任設定に関わらず常に決裁事項。
+
+## 4. ペルソナ(8名)
+
+定義は `.claude/agents/<name>.md`(frontmatter: name / description / backend / model)。
+backend は claude / openai / gemini を人格ごとに選べる(→ §10)。
+
+### TradeCouncil ペルソナ5名(意思決定会議用 — 偏りを設計)
+
+| ペルソナ | 視点 | 役割上の偏り(意図的) |
+|---|---|---|
+| macro_analyst | 金利・規制・マクロ | 中期目線。相場観の土台 |
+| momentum_trader | トレンド・出来高 | **強気バイアス**。機会の取りこぼし防止 |
+| contrarian_value | 過熱感・乖離 | **弱気バイアス**。momentum への対抗軸 |
+| quant_validator | データ・統計 | 「データで裏付くか」を全員に問う。数値の捏造禁止 |
+| risk_manager | 損失回避 | **veto 保有**。唯一「儲け」を評価基準に持たない |
+
+### MAGI 3人格(合議・レビュー・ブレスト用)
+
+MELCHIOR(論理・分析)/ BALTHASAR(共感・保護)/ CASPER(直感・欲求)。
+詳細は `prototype/DOCS.md` 3章(定義はルートにコピー済み、内容は同一)。
+
+## 5. シナリオ
+
+ルーター(`CLAUDE.md`)がユーザーの発言から選択する。一覧: `scenarios/README.md`。
+
+| シナリオ | 人格 | 何をするか |
+|---|---|---|
+| **council(意思決定会議)** | 5名 | ポリシーを審議 → 利用者の決裁 → `config/policies/` 生成。式次第は docs/03 第3章 |
+| deliberation(合議) | MAGI 3 | 議題を議論し確信度加重で合意形成 |
+| document-review | MAGI 3 | 資料を3レンズでレビュー、指摘+改訂版 |
+| brainstorm | MAGI 3 | アイデア発散・評価・上位案磨き |
+| persona-test | MAGI 3 | 人格の個性・調整の回帰検査 |
+
+council の成果物: 議事録(`<root>/council/`)+ 決裁済みポリシー + council_sessions 記録
+(`council log`)。決裁レコードの形式・必須キーは `scenarios/council.md` 参照。
+
+## 6. リスク管理と fail-closed
+
+RiskGuard のチェック順序(しきい値はすべて active ポリシーから。コード内デフォルト値なし):
+
+1. キルスイッチ(`var/run/KILL`)
+2. ★P-01〜P-04 が active(**No Policy, No Trade**)
+3. 資産クラスが P-02 の per_asset_class で上限 > 0(未決裁クラス封鎖)
+4. データ鮮度(P-04.stale_data_sec)
+5. サーキットブレーカ(P-04: 1分変動率・スプレッド)
+6. 1取引最大損失(P-03。損失見積りの無い注文は想定元本全額とみなす=保守的)
+7. 日次損失 / 週次ドローダウン(P-03)
+8. 総エクスポージャー / BOT別ポジション数(P-03)/ 実効レバレッジ(P-02)
+
+**多層防御**: ポリシーのキー欠落でも拒否 / executor は RiskApprovedOrder 型のみ受理 /
+初期状態(ポリシー0件)では clone 直後に起動しても1件も発注されない。
+
+キルスイッチ: `kill` コマンド / `var/run/KILL` ファイルを置く。解除(`resume`)は人間専用
+(エージェントからの実行は hooks がブロック)。
+
+## 7. データ設計(遡及性)
+
+SQLite(WAL、`var/tradecouncil.db`)。主要テーブルは docs/02 §4 + trade_decisions(ADR-0001)。
+
+**遡及の背骨**: `orders.decision_id → trade_decisions(source_type / rationale_json / source_ref)
+→ candles(一次データ)`。「この注文はなぜ出たか」が必ず一次情報まで遡れる。
+`python -m scripts.cli kpi` が根拠のない注文(orphan)ゼロを機械検証する。
+
+ガバナンス系: policies(現在値)/ policy_decisions(決裁履歴・append-only)/
+proposals(決裁キュー)/ council_sessions(会議記録)。
+
+## 8. CLI リファレンス
+
+`README.md` の CLI 一覧参照。実行形式は `.venv\Scripts\python.exe -m scripts.cli <cmd>`
+(`tc.exe` ランチャは環境によりブロックされるため)。
+
+## 9. セットアップと運用手順
+
+1. **セットアップ**: README のクイックスタート(venv → install → db init → hooks install → test)
+2. **第0回会議**: 「第0回会議を開催」→ ★P-01〜P-04 決裁 → fail-closed 解除
+3. **24h稼働試験**: コンソール2枚(paper / watchdog)+ `powercfg` でスリープ無効化。
+   翌日 `status`(heartbeat OK・建玉)と `kpi`(根拠連鎖 OK)を確認
+4. **日常運用**: 週次で `kpi` 確認 → 改善提案は proposals キュー → `approve/reject/defer`。
+   review_after が到来したポリシーは月次会議で再上程(Phase 0 では手動確認: `policy list`)
+
+## 10. LLMバックエンドと SharePoint
+
+- 人格ごとに backend(claude / openai / gemini)を frontmatter で指定。openai/gemini は
+  `scripts/ask_openai.py` / `ask_gemini.py` ブリッジ経由(リトライ・フォールバック・
+  ファイル添付・履歴渡し対応)。詳細は `CLAUDE.md`「人格ごとのLLMバックエンド選択」
+- API キー: 環境変数 → `.claude/settings.local.json`(`.example` をコピー)
+- SharePoint 連携(任意): `sharepoint.config.json` の `enabled` で入出力 root が
+  `local/` ⇔ `sharepoint/` に切り替わる。同期は `python scripts/sharepoint.py pull|push`。
+  Azure アプリ登録は `prototype/documents/sharepoint-azure-app-setup.md` 参照
+
+## 11. 既知の制約
+
+- **Windows ローカル前提**(Phase 0)。systemd/cron なし — watchdog は通知のみで自動再起動しない。
+  24h試験中の Windows Update 再起動・スリープに注意
+- 価格フィードは RandomWalk(疑似価格)。実勢価格・実取引所接続は Phase 1 以降
+- ペーパー約定は即時全量モデル(板・部分約定なし)
+- L2(ニュース解析・会議の API 自動実行)・バックテスト・週次レビュー自動化は未実装
+- `tc.exe` ランチャがセキュリティ設定でブロックされる環境がある(`python -m scripts.cli` を使う)
+- 未知のセッションカレンダーは常に閉場扱い(fail-closed)。立会時間制市場は Phase 6
+
+## 12. ロードマップ(docs/02 §9)
+
+| Phase | スコープ | 状態 |
+|---|---|---|
+| **0. 基盤** | ガバナンス・risk_guard・paper executor・ダミーBOT・会議体 | **実装済 — 第0回会議と24h試験待ち** |
+| 1. 単一戦略 | market_collector(実勢価格)、トレンドフォロー、バックテスト | 未着手 |
+| 2. ニュース | RSS収集、3段フィルタ、news_drift BOT | 未着手 |
+| 3. 戦略会議(API) | council_runner 自動実行、decision_gate 連携 | 未着手 |
+| 4. フィードバック自動化 | 週次レビュー(claude -p)、悪BOT状態遷移 | 未着手 |
+| 5. 少額実弾 | ゲート通過後に1BOTずつ | 未着手 |
+| 6〜7. マルチアセット | IBKR → 国内株 | 未着手 |

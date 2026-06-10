@@ -1,102 +1,101 @@
-# MAGI
+# TradeCouncil — マルチエージェント自動売買ガバナンス・フレームワーク
 
-エヴァンゲリオンのMAGIシステムに着想を得た、**人格ベースのマルチエージェント・システム**。
-価値観で分かれた3人格を、ファシリテーターが**用途シナリオ**に応じて動かす。最初の
-シナリオは「合議」(議論して合意形成)、第2のシナリオは「資料チェック&リバイス」
-(資料をレビューして指摘+改訂版を出す)。過程と結論を成果物として残す。
+複数の売買BOT(Python常駐)を、**ペルソナ・エージェント群が提案・審議し、利用者が
+唯一の決裁権者として決定し、決定だけがシステムに反映される**ガバナンス構造で運用する
+フレームワーク。MAGI 合議システム(`prototype/`)の人格・シナリオ基盤を継承している。
 
-## このリポジトリの構成
+> 一次成果物は「特定の取引ルール」ではなくガバナンスの構造そのもの。
+> 具体的な数値(リスク上限・レバレッジ等)はすべて**会議+決裁**で決まり、
+> 決裁されるまでシステムは **fail-closed(発注拒否)** で動く。
 
-このリポジトリは2つのフェーズを1つのリポジトリで管理する monorepo 構成です。
+## ドキュメントマップ
 
-```
-magi/
-├── README.md             ← 本書(全体概要)
-├── .gitignore            ← 全体共通の除外ルール
-├── .gitattributes        ← 改行コード統一(全体共通)
-├── prototype/            ← Phase 0: Claude Code Agent Teams版プロトタイプ
-└── app/                  ← Phase 1: Next.js + TypeScript版アプリ(開発中)
-```
-
-| ディレクトリ | フェーズ | 目的 | エントリポイント |
-|---|---|---|---|
-| `prototype/` | Phase 0 | 仕様検証・シナリオ/人格プロトコルの動作確認 | `prototype/README.md` |
-| `app/` | Phase 1 | 本格Webアプリ実装 | `app/README.md` |
-
-## どちらから読めばいい?
-
-- **プロジェクト全体の仕様を知りたい** → [`prototype/DOCS.md`](prototype/DOCS.md)
-- **プロトタイプを実際に動かしたい** → [`prototype/README.md`](prototype/README.md)
-- **本格アプリの開発を始めたい** → [`app/README.md`](app/README.md) と [`app/DEVELOPMENT.md`](app/DEVELOPMENT.md)
-- **AIが従うルール(シナリオ選択+共通作法)を見たい** → [`prototype/CLAUDE.md`](prototype/CLAUDE.md)
-- **各シナリオのプロトコルを見たい** → [`prototype/scenarios/`](prototype/scenarios/)
-- **アプリ開発時のコーディング規約を見たい** → [`app/CLAUDE.md`](app/CLAUDE.md)
-
-## 2つのフェーズの関係
-
-```
-┌─────────────────────────┐         ┌─────────────────────────┐
-│ Phase 0: prototype/     │ 仕様提供 │ Phase 1: app/           │
-│                         │ ────→  │                         │
-│ ・シナリオ/人格定義       │         │ ・Next.js + TypeScript  │
-│ ・3人格の挙動確認         │         │ ・Webアプリとして実装     │
-│ ・成果物形式の試行錯誤     │         │ ・永続化・UI・API化       │
-│ ・自然言語で記述          │         │ ・コードとして実装        │
-└─────────────────────────┘         └─────────────────────────┘
-       「動く仕様書」                       「本実装」
-```
-
-**プロトタイプは「動く仕様書」として残し続ける**ことを推奨。新機能はまず
-プロトタイプでシナリオ/プロトコル化 → 動作確認 → アプリに実装、の流れが安全です。
-
-## 開発フローのおすすめ
-
-### 仕様変更があるとき
-
-1. `prototype/CLAUDE.md`(ルーター)/ `prototype/scenarios/<name>.md` / 人格定義を編集
-2. プロトタイプで実際に動かして確認
-3. `prototype/DOCS.md` を更新
-4. `app/` で実装変更
-5. **1コミットにまとめてプッシュ**(monorepoの強み: 仕様と実装の同期が履歴上で明確に)
-
-### コミットメッセージ規約
-
-スコープにディレクトリ名を入れて履歴を読みやすくします:
-
-```
-feat(prototype): add fourth persona OBSERVER
-feat(app/personas): port MELCHIOR system prompt from prototype
-docs(prototype): clarify Round 4 Steelman rules
-fix(app/streaming): handle SSE reconnection
-chore: update root README
-```
-
-Conventional Commits 準拠。スコープは `prototype` / `app/<feature>` / 共通の場合は省略。
+| 知りたいこと | 読むファイル |
+|---|---|
+| 最短で動かす | 本書(下のクイックスタート) |
+| 全体仕様・運用ガイド | [DOCS.md](DOCS.md) |
+| 正式仕様(一次資料) | [docs/01_要件定義書.md](docs/01_要件定義書.md) / [docs/02_基本設計書.md](docs/02_基本設計書.md) / [docs/03_運営規程・第0回アジェンダ.md](docs/03_運営規程・第0回アジェンダ.md) |
+| 要件・機能・テストの管理表 | [REQUIREMENTS.md](REQUIREMENTS.md) / [FEATURES.md](FEATURES.md) / [TESTCASES.md](TESTCASES.md) |
+| 開発の作法 | [DEVELOPMENT.md](DEVELOPMENT.md) / [CLAUDE.md](CLAUDE.md) |
+| 会議・合議シナリオ | [scenarios/README.md](scenarios/README.md) |
 
 ## クイックスタート
 
-### プロトタイプを試す
+### 1. セットアップ(Windows / Python 3.12)
 
-```bash
-cd prototype
-# README.mdの手順に従う
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.venv\Scripts\python.exe -m scripts.cli db init
+.venv\Scripts\python.exe -m scripts.cli hooks install   # git pre-commit(秘密・ポリシー検査)
+copy .env.example .env                                   # Discord 通知を使う場合は URL を記入
+.venv\Scripts\python.exe -m scripts.cli test             # 全テストが緑になることを確認
 ```
 
-必要なもの: Claude Code v2.1.32以上、Python 3(成果物生成用)
+### 2. 第0回意思決定会議(取引解禁の鍵)
 
-### アプリ開発を始める
+リポジトリ直下で `claude` を起動し、**「第0回会議を開催」** と発話する。
+ペルソナ5名(マクロ/モメンタム/逆張り/クオンツ/リスク管理)が審議し、あなたの決裁で
+必須ポリシー ★P-01〜P-04 が `config/policies/` に生成される。
+これが決裁されるまで、システムは1件も発注しない(No Policy, No Trade)。
 
-```bash
-cd app
-# DEVELOPMENT.mdのM0から進める
+### 3. ペーパーBOT の24時間稼働試験(Phase 0 の完了条件)
+
+```powershell
+powercfg /change standby-timeout-ac 0    # スリープ無効化(24h試験のため)
+# コンソール1:
+.venv\Scripts\python.exe -m scripts.cli paper --bot dummy_rw
+# コンソール2:
+.venv\Scripts\python.exe -m scripts.cli watchdog
+# 確認(随時):
+.venv\Scripts\python.exe -m scripts.cli status
+.venv\Scripts\python.exe -m scripts.cli kpi      # 全注文の根拠連鎖を検証
+# 緊急停止:
+.venv\Scripts\python.exe -m scripts.cli kill
 ```
 
-必要なもの: Node.js、Anthropic API キー
+### 4. MAGI シナリオ(合議・資料レビュー・ブレスト)
 
-## ライセンス
+リポジトリ直下の `claude` でそのまま使える(例:「議題: ○○についてどう思う?」)。
+OpenAI / Gemini 人格を使う場合は `.claude/settings.local.json.example` をコピーして
+API キーを設定する。詳細は [DOCS.md](DOCS.md)。
 
-(必要に応じて追加)
+## CLI 一覧(`python -m scripts.cli ...`)
 
----
+| コマンド | 内容 |
+|---|---|
+| `test [--fast\|--risk]` | テスト実行(--risk はカバレッジ90%ゲート) |
+| `db init` | DB初期化(SQLite WAL) |
+| `paper --bot <id>` | ペーパーBOT起動(常駐) |
+| `watchdog` | heartbeat 監視(常駐) |
+| `status` / `kpi` | 状態一覧 / KPI+根拠連鎖検証 |
+| `kill [--close-positions]` / `resume` | キルスイッチ ON / 解除(resume は人間専用) |
+| `policy list\|show\|sync\|record --file <yaml>` | ポリシーレジストリ操作(record が唯一の適用経路) |
+| `approve\|reject\|defer <proposal_id>` | 決裁キューへの決裁 |
+| `council log` / `hooks install` | 会議の開催記録 / git フック導入 |
 
-仕様の一次資料: [`prototype/DOCS.md`](prototype/DOCS.md)
+## 安全設計(要点)
+
+- **LLM非執行**: 発注経路は 戦略 → 根拠起票 → risk_guard → executor の決定的コードのみ
+- **fail-closed**: 必須ポリシー未決裁の領域では発注を拒否(ポリシーのキー欠落でも拒否)
+- **全注文に decision_id**: 注文 → 根拠 → 一次データまで遡及可能(`kpi` で機械検証)
+- **キルスイッチ**: `kill` / `var/run/KILL` を置く / どちらでも全BOT即時停止
+
+**免責**: 自動売買は元本を失うリスクがある。本システムは利益を保証しない(docs/01 §8 必読)。
+
+## リポジトリ構成
+
+```
+TradeCouncil/
+├── docs/          正式仕様(一次資料)+ ADR
+├── config/        system.yaml / policies(レジストリ)/ generated / instruments / bots
+├── core/          L1実行層: governance / risk / market / exchange / execution / runner / notify / db
+├── bots/          戦略(core.exchange への直接アクセス禁止)
+├── feedback/      KPI集計
+├── scenarios/     会議・合議等のプロトコル(council / deliberation / ...)
+├── scripts/       tc CLI / LLMブリッジ(OpenAI/Gemini)/ メディア変換 / SharePoint / hooks
+├── tests/         risk はカバレッジ90%ゲート
+├── local/ sharepoint/  シナリオ入出力ルート(切替は sharepoint.config.json)
+├── var/           実行時生成物(DB・キルフラグ・ログ。gitignore)
+└── prototype/     MAGI プロトタイプ(独立・編集禁止。利用は cd prototype && claude)
+```

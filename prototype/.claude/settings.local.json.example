@@ -1,0 +1,26 @@
+{
+  "//": "このファイルは Git 管理されるテンプレート。コピーして実値を入れて使う。",
+  "//copy": "cp .claude/settings.local.json.example .claude/settings.local.json (Git追跡外)",
+  "//note": "実キーを書いた settings.local.json は .gitignore 済み。絶対にコミットしないこと。",
+  "env": {
+    "//OPENAI_API_KEY": "人格を backend: openai で動かす場合のみ必須。OpenAI の API キー。",
+    "OPENAI_API_KEY": "sk-REPLACE_WITH_YOUR_KEY",
+    "//OPENAI_BASE_URL": "通常は不要。Azure OpenAI / 互換プロキシ経由のときだけ設定する。",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "//GEMINI_API_KEY": "人格を backend: gemini で動かす場合のみ必須。Google AI Studio の API キー。",
+    "GEMINI_API_KEY": "REPLACE_WITH_YOUR_GEMINI_KEY",
+    "//GEMINI_BASE_URL": "通常は不要。プロキシ経由のときだけ設定する。",
+    "GEMINI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
+    "//SHAREPOINT": "SharePoint 連携の設定。ここに書いた値は sharepoint.config.json より優先される(env → config)。このファイルは Git 追跡外なので、オンオフやテナント URL をコミットせずに済む。",
+    "//MAGI_SHAREPOINT_ENABLED": "連携のオンオフ。true で sharepoint/ を使い同期、false(既定)で local/ の純ローカル。",
+    "MAGI_SHAREPOINT_ENABLED": "false",
+    "//MAGI_SHAREPOINT_SITE_URL": "対象サイト URL。REPLACE を含む値は未設定扱い(sharepoint.config.json の値を使う)。",
+    "MAGI_SHAREPOINT_SITE_URL": "https://REPLACE.sharepoint.com/sites/REPLACE",
+    "//MAGI_SHAREPOINT_DRIVE": "任意。ドキュメントライブラリ名(既定は config の Documents)。上書きするときだけ設定。",
+    "//MAGI_SHAREPOINT_ROOT": "任意。ライブラリ直下のミラー基点フォルダ(既定は config の MAGI)。上書きするときだけ設定。",
+    "//SHAREPOINT_AUTH": "以下は enabled=true のとき必須。Azure アプリ登録の値(documents/sharepoint-azure-app-setup.md 参照)。",
+    "MAGI_SHAREPOINT_TENANT_ID": "REPLACE_WITH_TENANT_ID",
+    "MAGI_SHAREPOINT_CLIENT_ID": "REPLACE_WITH_CLIENT_ID",
+    "MAGI_SHAREPOINT_CLIENT_SECRET": "REPLACE_WITH_CLIENT_SECRET"
+  }
+}

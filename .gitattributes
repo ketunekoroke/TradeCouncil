@@ -1,0 +1,54 @@
+# MAGI monorepo .gitattributes
+# 全テキストファイルの改行コードをLFに統一(Windows/Mac/Linux間で差分事故を防ぐ)
+
+* text=auto eol=lf
+
+# テキストファイル(明示)
+*.md text eol=lf
+*.txt text eol=lf
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# シェルスクリプトはLF必須
+*.sh text eol=lf
+
+# WindowsスクリプトはCRLF維持
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# バイナリファイル(差分計算しない)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.zip binary
+*.tar.gz binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# GitHubでの言語検出
+*.md linguist-detectable=true
+*.ts linguist-detectable=true
+*.tsx linguist-detectable=true
+*.py linguist-detectable=true

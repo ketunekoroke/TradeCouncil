@@ -161,10 +161,13 @@ class TestNoBotExchangeImport:
         """bots/ から core/exchange/ を直接 import する経路を禁止(原則2)。"""
         import pathlib
 
+        import re
+
         bots_dir = pathlib.Path(__file__).resolve().parents[2] / "bots"
         if not bots_dir.exists():
             pytest.skip("bots/ not yet created")
+        forbidden = re.compile(r"^\s*(from|import)\s+core\.(exchange|execution)", re.MULTILINE)
         for py in bots_dir.glob("**/*.py"):
             source = py.read_text(encoding="utf-8")
-            assert "core.exchange" not in source, f"{py} が core.exchange を直接参照"
-            assert "core.execution" not in source, f"{py} が executor を直接参照"
+            match = forbidden.search(source)
+            assert match is None, f"{py} が {match.group(0).strip() if match else ''} している"

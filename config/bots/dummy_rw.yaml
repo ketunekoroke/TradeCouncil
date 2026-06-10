@@ -1,0 +1,8 @@
+# ダミーBOT(Phase 0 の24h無人稼働試験用)
+bot_id: dummy_rw
+strategy: dummy_random_walk
+instrument_id: paper.btc_jpy.spot
+enabled: true
+params:
+  order_qty: 0.001   # BTC
+  hold_bars: 3       # 3バー保有して決済する固定サイクル

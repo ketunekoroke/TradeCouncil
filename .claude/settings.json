@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git merge *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "PowerShell(Set-Location c:\\\\git_repository\\\\TradeCouncil; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -m pytest \"tests/execution/test_executor.py::TestIdempotency::test_same_decision_submits_once\" -q --tb=line 2>&1 | Select-String -Pattern \"Error|error|FAILED|assert\" | Select-Object -First 8)"
     ]
   }
 }

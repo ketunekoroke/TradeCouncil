@@ -1,0 +1,10 @@
+# 統一インストゥルメントモデル(FR-8.1 / 基本設計書 §2.5)
+instrument_id: paper.btc_jpy.spot
+asset_class: crypto_spot      # crypto_spot | crypto_margin | equity_jp | equity_foreign | futures | fx | bond_etf
+broker: paper                 # どのアダプタ経由で執行するか
+symbol: "BTC_JPY"
+currency: JPY
+tick_size: 1
+lot_size: 0.0001
+session_calendar: always      # 24/7(暗号資産)
+margin_rule: cash             # 現物

@@ -1,9 +1,52 @@
 # ==============================================================================
-# MAGI monorepo .gitignore(全体共通の除外ルール)
+# TradeCouncil .gitignore
 #
-# 各サブディレクトリ(prototype/, app/)にも独自の .gitignore があります。
-# Gitは階層的に評価するため、ここではどちらでも共通する横断的な項目だけ書きます。
+# prototype/ には独自の .gitignore があります(MAGI プロトタイプ用)。
+# Gitは階層的に評価するため、ここにはルート(TradeCouncil 本体)の除外を書きます。
 # ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Python(TradeCouncil 本体)
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# ------------------------------------------------------------------------------
+# TradeCouncil 実行時生成物
+# ------------------------------------------------------------------------------
+/var/
+/reports/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+# ------------------------------------------------------------------------------
+# シナリオ入出力ルート(個人情報・容量の理由でデフォルト除外)
+# .gitkeep / README のみ追跡。個別共有は `git add -f <path>` で可能
+# ------------------------------------------------------------------------------
+/local/**
+/sharepoint/**
+!/local/**/
+!/sharepoint/**/
+!/local/**/.gitkeep
+!/sharepoint/**/.gitkeep
+!/local/README.md
+!/sharepoint/README.md
+!/local/**/README.md
+!/sharepoint/**/README.md
 
 # ------------------------------------------------------------------------------
 # OS生成ファイル(全ディレクトリ共通)
@@ -79,6 +122,4 @@ tmp/
 *.rar
 
 # 注:
-# - Pythonの除外(__pycache__等)→ prototype/.gitignore
-# - Next.jsの除外(node_modules, .next等)→ app/.gitignore
-# - 議論ログ・メディア → prototype/.gitignore
+# - prototype/ 配下の除外(議論ログ・メディア等)→ prototype/.gitignore

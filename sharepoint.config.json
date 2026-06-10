@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
+  "drive": "Documents",
+  "root": "MAGI",
+  "folders": {
+    "input": "input",
+    "media-output": "media-output",
+    "reviews": "reviews",
+    "deliberations": "deliberations",
+    "brainstorms": "brainstorms",
+    "persona-tests": "persona-tests"
+  }
+}

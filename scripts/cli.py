@@ -89,6 +89,53 @@ def cmd_decide(args: argparse.Namespace) -> int:
     return run_decide_command(args)
 
 
+def cmd_hooks(args: argparse.Namespace) -> int:
+    if args.hooks_command == "install":
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        hook_path = root / ".git" / "hooks" / "pre-commit"
+        python = root / ".venv" / "Scripts" / "python.exe"
+        script = root / "scripts" / "hooks" / "pre_commit.py"
+        hook_path.write_text(
+            "#!/bin/sh\n"
+            f'"{python}" "{script}"\n',
+            encoding="utf-8",
+        )
+        print(f"git pre-commit フックを導入: {hook_path}")
+        return 0
+    print("usage: tc hooks install", file=sys.stderr)
+    return 2
+
+
+def cmd_council(args: argparse.Namespace) -> int:
+    if args.council_command == "log":
+        from datetime import UTC, datetime
+
+        from core.db import get_session_factory, init_db
+        from core.db.models import CouncilSession
+
+        init_db()
+        with get_session_factory()() as session:
+            existing = session.get(CouncilSession, args.session_id)
+            if existing is not None:
+                existing.minutes_path = args.minutes or existing.minutes_path
+            else:
+                session.add(
+                    CouncilSession(
+                        session_id=args.session_id,
+                        kind=args.kind,
+                        started_at=datetime.now(UTC).replace(tzinfo=None),
+                        minutes_path=args.minutes,
+                    )
+                )
+            session.commit()
+        print(f"council_sessions に記録: {args.session_id} ({args.kind})")
+        return 0
+    print("usage: tc council log --session-id <id> --kind <kind> [--minutes <path>]", file=sys.stderr)
+    return 2
+
+
 def cmd_paper(args: argparse.Namespace) -> int:
     from core.runner.bot_runner import run_paper_bot
 
@@ -147,6 +194,19 @@ def build_parser() -> argparse.ArgumentParser:
         if action == "approve":
             p_act.add_argument("--file", help="決裁レコードYAML(ポリシー変更を伴う場合)")
         p_act.set_defaults(func=cmd_decide, decide_action=action)
+
+    p_hooks = sub.add_parser("hooks", help="git フックの導入")
+    hooks_sub = p_hooks.add_subparsers(dest="hooks_command", required=True)
+    hooks_sub.add_parser("install", help="pre-commit フック(秘密検査・ポリシー検査)を導入")
+    p_hooks.set_defaults(func=cmd_hooks)
+
+    p_council = sub.add_parser("council", help="会議の開催記録")
+    council_sub = p_council.add_subparsers(dest="council_command", required=True)
+    pc_log = council_sub.add_parser("log", help="council_sessions へ開催記録を残す")
+    pc_log.add_argument("--session-id", required=True)
+    pc_log.add_argument("--kind", required=True, choices=["kickoff", "weekly", "monthly", "adhoc"])
+    pc_log.add_argument("--minutes", help="議事録ファイルのパス")
+    p_council.set_defaults(func=cmd_council)
 
     p_paper = sub.add_parser("paper", help="ペーパーBOT起動(常駐)")
     p_paper.add_argument("--bot", required=True, help="bot_id(config/bots/<id>.yaml)")

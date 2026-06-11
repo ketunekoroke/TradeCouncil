@@ -37,7 +37,8 @@ def print_status() -> int:
             print(f"  {pid}: active v{doc.version} ({doc.title})")
         except PolicyNotActiveError as exc:
             all_active = False
-            print(f"  {pid}: ✗ {exc.reason} → fail-closed(発注不可)")
+            # ×(U+00D7)は cp932 対応。✗(U+2717)は非対応なので使わない(BL-018)
+            print(f"  {pid}: × {exc.reason} → fail-closed(発注不可)")
     if not all_active:
         print("  → 第0回意思決定会議で P-01〜P-04 を決裁すると取引が解禁される")
 

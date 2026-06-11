@@ -46,6 +46,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-019 | TC_VAR_DIR: 絶対/相対の読み替え・サブ構造維持・未設定時の従来挙動・var 外パス非影響・動的解決 | `pytest tests/config` | REQ-O04 |
 | TC-020 | tc snapshot: 整合コピーの行一致・元DB無傷・dest既存エラー・親dir作成・WALコミット済データ反映 | `pytest tests/db` | REQ-O05 |
 | TC-021 | 構造化ログ: JSON 形式の妥当性・例外フィールド・plain 後方互換・冪等・level フィルタ・config 解決・不正 format 拒否 | `pytest tests/log` | REQ-O06 |
+| TC-022 | CLI 出力の cp932 耐性(BL-018): 非対応グリフ(✓✗)は「?」置換で落ちない・encoding 不変・reconfigure 非対応ストリーム許容・`status` が cp932 厳格ストリームで完走 | `pytest tests/scripts/test_cli_encoding.py` | FEAT-32 |
 
 ## P1(手動・主要パス)
 

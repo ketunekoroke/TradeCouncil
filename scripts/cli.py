@@ -23,6 +23,20 @@ import subprocess
 import sys
 
 
+def configure_output_streams() -> None:
+    """stdout/stderr をエンコードエラーで落ちない設定に再構成する(BL-018)。
+
+    Windows ではリダイレクト時・レガシーコンソールで標準ストリームが ANSI
+    コードページ(日本語環境では cp932)+ errors="strict" で開かれ、✓✗ 等の
+    非対応グリフが UnicodeEncodeError でプロセスを落とす。encoding 自体は
+    変えず(パイプ消費側の期待を壊さない)、非対応文字のみ「?」へ置換する。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
+
+
 def cmd_db(args: argparse.Namespace) -> int:
     if args.db_command == "init":
         from core.db import init_db
@@ -252,6 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_output_streams()
     args = build_parser().parse_args(argv)
     return args.func(args)
 

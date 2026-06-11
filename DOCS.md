@@ -186,6 +186,8 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
 
 通知は Microsoft Teams(Power Automate Workflows + Adaptive Card)が既定。
 O365 Incoming Webhook コネクタは廃止済みのため使えない。
+**詳細手順(前提条件・画面操作・トラブルシューティング)は
+[docs/setup/teams-notification-setup.md](docs/setup/teams-notification-setup.md) 参照。**以下は要約:
 
 1. Teams の **Workflows** アプリ(または make.powerautomate.com)で、テンプレート
    「**Webhook 要求を受信したらチャネルに投稿する**(Post to a channel when a webhook

@@ -44,6 +44,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-017 | 通知: backend 切替・Adaptive Card 形式・severity 色・facts・切詰め・例外吸収・チャネルルーティング(明示>routing>default のフォールバック連鎖)・Workflow URL(sig付き)の秘密検出 | `pytest tests/notify` | REQ-O01, REQ-S01 |
 | TC-018 | シークレット解決順(環境変数 → .env → settings.local.json、placeholder/空は除外) | `pytest tests/scripts` | REQ-S01 |
 | TC-019 | TC_VAR_DIR: 絶対/相対の読み替え・サブ構造維持・未設定時の従来挙動・var 外パス非影響・動的解決 | `pytest tests/config` | REQ-O04 |
+| TC-020 | tc snapshot: 整合コピーの行一致・元DB無傷・dest既存エラー・親dir作成・WALコミット済データ反映 | `pytest tests/db` | REQ-O05 |
 
 ## P1(手動・主要パス)
 

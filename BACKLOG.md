@@ -12,7 +12,7 @@
 
 ---
 
-## 今スプリント(Sprint 3: 未開始)
+## 今スプリント(Sprint 4: 未開始)
 
 (次の作業開始時にプロダクトバックログから移動する)
 
@@ -27,7 +27,7 @@
 | BL-014 | 運用者として決裁イベントと KPI を専用チャネルで受け取りたい。なぜなら 📜governance・📊reports チャネルの発火点(`tc approve` 決裁時・`tc kpi` 集計時に `channel=` 指定で send)が未実装だから | scripts/cli 側のみで実装可(通知基盤は BL-013 で対応済み)。BL-009 と同時期に着手すると効率的 |
 | BL-010 | 開発者として Alembic によるスキーマ移行を導入したい。なぜなら create_all はカラム追加を反映できないから(docs/04 §5) | Phase 1 以降。ADR 起票してから着手 |
 | BL-016 | [要決裁] 運用者として Phase 1 のホスティング(A-5)を決定しサーバを構築したい。なぜなら paper 常駐の本番(prod)が VPS/Azure/自宅のどれかで必要だから | 判断基準は docs/05 §4。決定したら docs/01 A-5 確定 + ADR 起票 → systemd 化・デプロイ手順(docs/05 §5) |
-| BL-017 | 運用者としてサーバ上の Claude Code 運用(claude -p 定型ジョブ・SSH 障害調査)を整備したい。なぜなら AI が本番実態を直接観測できる必要があるから(docs/05 §5.3) | BL-016 の後。hooks 同梱・直接編集禁止ルールの確認手順を含む。Phase 4 の週次レビューと接続 |
+| BL-017 | 運用者としてサーバ上の Claude Code 運用(claude -p 定型ジョブ・SSH 障害調査)を整備したい。なぜなら AI が本番実態を直接観測できる必要があるから(docs/05 §5.3) | BL-016 の後。hooks 同梱・直接編集禁止ルールの確認手順を含む。**SSH ライブ読取(tc status/kpi/policy list)と tc snapshot の SharePoint/scp 配布**(docs/setup/remote-data-access.md)も整備。Phase 4 の週次レビューと接続 |
 | BL-018 | [バグ] 運用者として `tc status` がポリシー未決裁時もトレースバックで落ちずに fail-closed 状態を表示してほしい | PolicyNotActiveError を捕捉し「P-XX 未決裁(fail-closed)」と表示する。scripts/cli_status.py のみ。2026-06-12 のサンドボックス検証で発見(本体環境でも再現) |
 
 ## アイデア / Icebox
@@ -41,6 +41,9 @@
 - llm_usage テーブルへの記録実装(LLMコストメーター、Phase 2 のニュースパイプラインと同時)
 
 ## 完了
+
+### Sprint 3(2026-06-12)
+- BL-019 ✅ 本番データ閲覧アーキテクチャ(ADR-0005・docs/05 §3.5.1・docs/setup/remote-data-access.md。git 一方向・本番 push なし)+ `tc snapshot`(VACUUM INTO、tests/db 5件)+ 議事録の git 追跡 + Notion 採用(閲覧専用)
 
 ### Sprint 2(2026-06-12)
 - BL-015 ✅ 開発フロー・実行環境方針(docs/05 + ADR-0004)+ TC_VAR_DIR サンドボックス実装(tests/config 8件、既存テスト無修正で132件緑、手動検証済み)

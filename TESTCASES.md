@@ -25,7 +25,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 
 | ID | タイトル | 実行方法 | 関連 |
 |---|---|---|---|
-| TC-001 | 全 pytest スイート(83+件)が緑 | `python -m scripts.cli test` | 全FEAT |
+| TC-001 | 全 pytest スイート(100+件)が緑 | `python -m scripts.cli test` | 全FEAT |
 | TC-002 | **fail-closed**: ポリシー0件/1件欠如/非active/失効/キー欠落 → 全拒否 | `pytest tests/risk/test_fail_closed.py` | REQ-R01 |
 | TC-003 | 各リスク上限の境界値(ちょうど=可、+ε=拒否) | `pytest tests/risk/test_limits.py` | REQ-R03, R06 |
 | TC-004 | キルスイッチ(最優先拒否・冪等・ループ停止) | `pytest tests/risk/test_kill_switch.py tests/e2e -k kill` | REQ-R05 |
@@ -41,6 +41,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-014 | hooks 単体: live/resume ブロック、generated/policies/prototype 保護、秘密検出 | stdin JSON を hooks に流して exit code 確認(FEATURES の FEAT-40〜41) | REQ-S01〜S03 |
 | TC-015 | pre-commit: 決裁レコードなしポリシー / .env / 秘密 を拒否 | ダミーをステージして `python scripts/hooks/pre_commit.py` | REQ-S01, S03 |
 | TC-016 | 人格 frontmatter の妥当性(name/backend/model が揃う) | 目視 or grep(8ファイル) | REQ-SC03 |
+| TC-017 | 通知: backend 切替・Adaptive Card 形式・severity 色・facts・切詰め・例外吸収・Workflow URL(sig付き)の秘密検出 | `pytest tests/notify` | REQ-O01, REQ-S01 |
 
 ## P1(手動・主要パス)
 
@@ -68,7 +69,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | ID | タイトル | 内容 | 関連 |
 |---|---|---|---|
 | TC-301 | tc.exe ランチャがブロックされる環境 → `python -m scripts.cli` で代替できる | ADR-0001 | — |
-| TC-302 | Discord URL 未設定 → 通知がログfallbackし本体が止まらない | .env 空で kill 等を実行 | REQ-O01 |
+| TC-302 | 通知 URL 未設定(Teams/Discord いずれの backend でも)→ 通知がログfallbackし本体が止まらない | .env 空で kill 等を実行(自動版は `pytest tests/notify`) | REQ-O01 |
 | TC-303 | DB ファイル破損/削除 → `db init` で再構築、reconcile が不整合を報告 | var/ 削除 → 再init | REQ-E03 |
 | TC-304 | Windows スリープ復帰後の watchdog 途絶検知 | スリープ→復帰 | REQ-O02 |
 | TC-305 | ポリシーYAML手編集 → pre-commit / hooks が検出 | わざと編集 | REQ-S03 |

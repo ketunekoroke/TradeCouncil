@@ -28,7 +28,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
 .venv\Scripts\python.exe -m scripts.cli db init
 .venv\Scripts\python.exe -m scripts.cli hooks install   # git pre-commit(秘密・ポリシー検査)
-copy .env.example .env                                   # Discord 通知を使う場合は URL を記入
+copy .env.example .env                                   # 通知(Teams/Discord)を使う場合は URL を記入(手順: DOCS.md §9)
 .venv\Scripts\python.exe -m scripts.cli test             # 全テストが緑になることを確認
 ```
 

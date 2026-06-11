@@ -42,7 +42,9 @@ python -m venv .venv
 | `CLAUDE.md` | ルーター + 共通作法 + 開発規約 | 低(慎重に) |
 | `config/system.yaml` | 技術設定(運用ポリシーは書かない) | 中 |
 | `DOCS.md` / `REQUIREMENTS.md` / `FEATURES.md` / `TESTCASES.md` | 管理文書 | 高(変更を反映) |
-| `docs/adr/` | 設計判断の記録 | 設計逸脱・大きな判断のたび |
+| `BACKLOG.md` | タスク・アイデアのバックログ(アジャイル運用) | 高(作業の開始/完了時・アイデアが出るたび) |
+| `docs/adr/` | 設計判断の記録 | 大きな判断のたび(一次資料 docs/01〜04 は直接改訂し、経緯を ADR に残す) |
+| `docs/04_データベース設計書.md` | DB物理スキーマ仕様 | `core/db/models.py` 変更時に**必ず**併せて更新 |
 
 **編集してはいけない**: `prototype/`(参照のみ)、`config/policies/*.yaml`・`config/generated/`
 (`tc policy record` / `sync` 経由のみ)、`var/`、`local/`・`sharepoint/` の生成物。

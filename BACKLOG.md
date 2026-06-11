@@ -12,7 +12,7 @@
 
 ---
 
-## 今スプリント(Sprint 4: 未開始)
+## 今スプリント(Sprint 5: 未開始)
 
 (次の作業開始時にプロダクトバックログから移動する)
 
@@ -26,13 +26,15 @@
 | BL-009 | 運用者として日次サマリ・週次レポートを Teams カードで受け取りたい。なぜなら FR-7.1 の通知種別のうち約定・損失警告・日次サマリは発火点が未実装だから | risk/executor 側の発火点実装が必要(core/risk・core/execution を触るため risk-auditor 審査対象) |
 | BL-014 | 運用者として決裁イベントと KPI を専用チャネルで受け取りたい。なぜなら 📜governance・📊reports チャネルの発火点(`tc approve` 決裁時・`tc kpi` 集計時に `channel=` 指定で send)が未実装だから | scripts/cli 側のみで実装可(通知基盤は BL-013 で対応済み)。BL-009 と同時期に着手すると効率的 |
 | BL-010 | 開発者として Alembic によるスキーマ移行を導入したい。なぜなら create_all はカラム追加を反映できないから(docs/04 §5) | Phase 1 以降。ADR 起票してから着手 |
-| BL-016 | [要決裁] 運用者として Phase 1 のホスティング(A-5)を決定しサーバを構築したい。なぜなら paper 常駐の本番(prod)が VPS/Azure/自宅のどれかで必要だから | 判断基準は docs/05 §4。決定したら docs/01 A-5 確定 + ADR 起票 → systemd 化・デプロイ手順(docs/05 §5) |
+| BL-016 | ~~Phase 1 のホスティング(A-5)を決定~~ → **AWS に決定済(2026-06-12、ADR-0006)**。残: 実構築は BL-021 | docs/01 A-5 確定済。構成は docs/setup/aws-architecture.md |
+| BL-021 | 運用者として AWS インフラ(EC2/IAM/EBS/S3 + CloudWatch Agent + systemd)を構築したい。なぜなら paper 常駐の本番が必要だから | docs/setup/aws-architecture.md §2-3。SSH 鍵・git 一方向 pull デプロイ・`log_format: json`。BL-017(SSH 読取)と接続 |
+| BL-022 | 運用者として取引ダッシュボードを Teams タブの Power BI で見たい。なぜならトランザクションを可視化したいから | 主要テーブル→Parquet エクスポート(systemd timer、tc snapshot 入力)→ S3 → Glue/Athena → Power BI(Teams タブ)。aws-architecture.md §4 |
+| BL-023 | 運用者として CloudWatch アラートを Teams に流したい。なぜなら重大イベント(heartbeat 途絶等)を即時に知りたいから | CloudWatch Alarm → SNS → 既存 Teams 通知(notifier 連携)。aws-architecture.md §5 |
 | BL-017 | 運用者としてサーバ上の Claude Code 運用(claude -p 定型ジョブ・SSH 障害調査)を整備したい。なぜなら AI が本番実態を直接観測できる必要があるから(docs/05 §5.3) | BL-016 の後。hooks 同梱・直接編集禁止ルールの確認手順を含む。**SSH ライブ読取(tc status/kpi/policy list)と tc snapshot の SharePoint/scp 配布**(docs/setup/remote-data-access.md)も整備。Phase 4 の週次レビューと接続 |
 | BL-018 | [バグ] 運用者として `tc status` がポリシー未決裁時もトレースバックで落ちずに fail-closed 状態を表示してほしい | PolicyNotActiveError を捕捉し「P-XX 未決裁(fail-closed)」と表示する。scripts/cli_status.py のみ。2026-06-12 のサンドボックス検証で発見(本体環境でも再現) |
 
 ## アイデア / Icebox
 
-- Teams タブ + Power BI で orders / pnl_daily のダッシュボード化(SQLite → CSV/Parquet エクスポート経由)
 - Teams Bot コマンドからのキルスイッチ操作(FR-5.6 拡張。発注系ではないが要安全審査)
 - Discord 併用(critical のみ二重通知)の要否 — P-11 決裁の論点
 - Notion ↔ SharePoint の役割分担整理(ミラー二重化を避ける)— 会議論点
@@ -41,6 +43,9 @@
 - llm_usage テーブルへの記録実装(LLMコストメーター、Phase 2 のニュースパイプラインと同時)
 
 ## 完了
+
+### Sprint 4(2026-06-12)
+- BL-020 ✅ AWS ホスティング・可観測性アーキテクチャ(ADR-0006・docs/setup/aws-architecture.md。A-5=AWS 確定、コア DB は SQLite 維持・DynamoDB 不採用)+ 中央集権的な構造化ログ実装(core/logsetup.py、tests/log 8件、既定 plain で後方互換、145件緑)
 
 ### Sprint 3(2026-06-12)
 - BL-019 ✅ 本番データ閲覧アーキテクチャ(ADR-0005・docs/05 §3.5.1・docs/setup/remote-data-access.md。git 一方向・本番 push なし)+ `tc snapshot`(VACUUM INTO、tests/db 5件)+ 議事録の git 追跡 + Notion 採用(閲覧専用)

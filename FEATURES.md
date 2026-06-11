@@ -52,6 +52,7 @@
 | FEAT-33 | KPIレポート + 根拠連鎖の機械検証(orphan注文=0) | 実装済 | [feedback/kpi.py](feedback/kpi.py) | REQ-E05 |
 | FEAT-34 | TC_VAR_DIR サンドボックス(var/ 接頭辞パスの読み替え・動的解決・var-* の gitignore/hooks 保護) | 実装済 | [core/config.py](core/config.py) | REQ-O04 |
 | FEAT-35 | DB 整合スナップショット `tc snapshot`(VACUUM INTO・TC_VAR_DIR 追従・バックアップ/本番閲覧用) | 実装済 | [core/db/snapshot.py](core/db/snapshot.py) | REQ-O05 |
+| FEAT-36 | 中央集権的な構造化ログ(plain/json 切替・stdout 出力・冪等。CloudWatch 取り込み下準備) | 実装済 | [core/logsetup.py](core/logsetup.py) | REQ-O06 |
 
 ## 安全フック
 

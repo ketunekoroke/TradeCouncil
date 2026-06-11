@@ -12,7 +12,7 @@
 > - 一次資料は**常に現状を映すよう直接改訂**し、意思決定の経緯は `docs/adr/` に記録する
 >   (ADR-0001: Windows/CLI 等の初期判断 / ADR-0002: Teams 通知・Notion ミラー方針 /
 >   ADR-0003: 専用 Team・マルチチャネル通知 / ADR-0004: 実行環境戦略 /
->   ADR-0005: 本番データ閲覧アーキテクチャ)
+>   ADR-0005: 本番データ閲覧アーキテクチャ / ADR-0006: AWS ホスティング・可観測性)
 
 ---
 
@@ -184,6 +184,9 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
    - 本番データの閲覧(Phase 1+): 議事録=git / DB=SSH ライブ読取・`tc snapshot` /
      ファイル=SharePoint / 可視化=Notion ミラー。git は一方向で本番は push しない
      (docs/setup/remote-data-access.md・ADR-0005)
+   - クラウド = **AWS**(ADR-0006): EC2 1台 + SQLite on EBS + CloudWatch Logs +
+     S3/Athena + Power BI(Teams タブ)。ログは `runtime.log_format: json` で構造化
+     (docs/setup/aws-architecture.md)
 2. **第0回会議**: 「第0回会議を開催」→ ★P-01〜P-04 決裁 → fail-closed 解除
 3. **24h稼働試験**: コンソール2枚(paper / watchdog)+ `powercfg` でスリープ無効化。
    翌日 `status`(heartbeat OK・建玉)と `kpi`(根拠連鎖 OK)を確認

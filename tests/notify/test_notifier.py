@@ -171,6 +171,145 @@ def test_notify_config_rejects_unknown_backend() -> None:
         NotifyConfig(backend="slack")  # type: ignore[arg-type]
 
 
+# --- マルチチャネルルーティング(ADR-0003)---
+
+OPS_URL = "https://example.invalid/wf-ops"
+ALERTS_URL = "https://example.invalid/wf-alerts"
+GOV_URL = "https://example.invalid/wf-governance"
+ROUTING = {"info": "ops", "warning": "alerts", "critical": "alerts"}
+CHANNEL_URLS = {"ops": OPS_URL, "alerts": ALERTS_URL, "governance": GOV_URL}
+
+
+def _multi(url: str | None = DUMMY_URL, **kwargs: Any) -> TeamsNotifier:
+    kwargs.setdefault("channel_urls", CHANNEL_URLS)
+    kwargs.setdefault("routing", ROUTING)
+    return TeamsNotifier(url, **kwargs)
+
+
+def test_routing_maps_severity_to_channel_url(posted: list) -> None:
+    n = _multi()
+    n.send("停止", "critical")
+    assert posted[-1]["url"] == ALERTS_URL
+    n.send("サマリ", "info")
+    assert posted[-1]["url"] == OPS_URL
+
+
+def test_explicit_channel_overrides_routing(posted: list) -> None:
+    _multi().send("決裁待ち提案があります", "warning", channel="governance")
+    assert posted[-1]["url"] == GOV_URL
+
+
+def test_routing_unmapped_severity_uses_default(posted: list) -> None:
+    n = TeamsNotifier(DUMMY_URL, channel_urls=CHANNEL_URLS, routing={"critical": "alerts"})
+    n.send("info は routing 未記載", "info")
+    assert posted[-1]["url"] == DUMMY_URL
+
+
+def test_unknown_channel_falls_back_to_default_with_warning(
+    posted: list, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("WARNING", logger="tradecouncil.notify"):
+        assert _multi().send("typo チャネル", "info", channel="alers") is True
+    assert posted[-1]["url"] == DUMMY_URL
+    assert "alers" in caplog.text
+    assert "フォールバック" in caplog.text
+
+
+def test_channel_url_missing_falls_back_to_default(
+    posted: list, caplog: pytest.LogCaptureFixture
+) -> None:
+    n = TeamsNotifier(DUMMY_URL, channel_urls={}, routing=ROUTING)
+    with caplog.at_level("WARNING", logger="tradecouncil.notify"):
+        assert n.send("ops の URL なし", "info") is True
+    assert posted[-1]["url"] == DUMMY_URL
+    assert "'ops'" in caplog.text
+
+
+def test_channel_url_used_when_default_missing(posted: list) -> None:
+    n = _multi(url=None)
+    assert n.send("default なしでもチャネル URL があれば送れる", "critical") is True
+    assert posted[-1]["url"] == ALERTS_URL
+
+
+def test_no_url_at_all_falls_back_to_log_with_channel(
+    posted: list, caplog: pytest.LogCaptureFixture
+) -> None:
+    n = TeamsNotifier(None, channel_urls={}, routing=ROUTING)
+    with caplog.at_level("INFO", logger="tradecouncil.notify"):
+        assert n.send("全 URL なし", "critical") is False
+    assert posted == []
+    assert "notify(fallback)" in caplog.text
+    assert "#alerts" in caplog.text
+
+
+def test_severity_filter_applies_before_channel_resolution(posted: list) -> None:
+    n = _multi(min_severity="warning")
+    assert n.send("info は抑制", "info", channel="governance") is False
+    assert posted == []
+
+
+def test_legacy_construction_behaves_as_before(posted: list) -> None:
+    """channel_urls / routing 未指定の従来構築は常に default URL へ(後方互換)。"""
+    n = TeamsNotifier(DUMMY_URL)
+    assert n.send("従来呼び出し", "critical") is True
+    assert posted[-1]["url"] == DUMMY_URL
+
+
+def test_discord_routing_symmetric(posted: list) -> None:
+    n = DiscordNotifier(DUMMY_URL, channel_urls=CHANNEL_URLS, routing=ROUTING)
+    n.send("停止", "critical")
+    assert posted[-1]["url"] == ALERTS_URL
+    n.send("決裁", "info", channel="governance")
+    assert posted[-1]["url"] == GOV_URL
+
+
+def test_teams_footer_contains_channel(posted: list) -> None:
+    _multi().send("msg", "critical")
+    footer = _card(posted)["body"][-1]["text"]
+    assert "#alerts" in footer
+    TeamsNotifier(DUMMY_URL).send("チャネル未解決", "critical")
+    assert "#" not in _card(posted)["body"][-1]["text"].replace("Phase 0", "")
+
+
+def test_notify_config_routing_defaults_empty() -> None:
+    assert NotifyConfig().routing == {}
+
+
+def test_notify_config_rejects_unknown_severity_key() -> None:
+    with pytest.raises(ValidationError):
+        NotifyConfig(routing={"fatal": "ops"})
+
+
+@pytest.mark.parametrize("bad", ["", "OPS", "日本語", "a-b", "1ops"])
+def test_notify_config_rejects_invalid_channel_name(bad: str) -> None:
+    with pytest.raises(ValidationError):
+        NotifyConfig(routing={"info": bad})
+
+
+def test_get_notifier_builds_channel_urls_from_env(
+    posted: list, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import core.config as config_mod
+
+    # 実 .env 由来の環境変数を遮断してから注入する
+    for key in list(__import__("os").environ):
+        if key.startswith(("TEAMS_WORKFLOW_URL", "DISCORD_WEBHOOK_URL")):
+            monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("TEAMS_WORKFLOW_URL", DUMMY_URL)
+    monkeypatch.setenv("TEAMS_WORKFLOW_URL_ALERTS", ALERTS_URL)
+
+    cfg = config_mod.load_config()
+    cfg.notify.backend = "teams"  # type: ignore[assignment]
+    cfg.notify.routing = ROUTING
+    monkeypatch.setattr(config_mod, "get_config", lambda: cfg)
+
+    n = get_notifier()
+    n.send("critical は alerts へ", "critical")
+    assert posted[-1]["url"] == ALERTS_URL
+    n.send("ops は URL 未設定 → default", "info")
+    assert posted[-1]["url"] == DUMMY_URL
+
+
 # --- シークレット検出(hook)---
 
 

@@ -33,6 +33,13 @@ feed:
     seed: null              # null = 起動毎にランダム / テストでは固定する
 
 notify:
-  # 通知先 URL は .env(TEAMS_WORKFLOW_URL / DISCORD_WEBHOOK_URL)から読む。ここに書かない
+  # 通知先 URL は .env から読む。ここに書かない。
+  # チャネル別 URL は TEAMS_WORKFLOW_URL_<チャネル名大文字>(例 _OPS / _ALERTS)。
+  # 未設定チャネルは TEAMS_WORKFLOW_URL(default)へフォールバック(ADR-0003)
   backend: teams            # teams(Power Automate Workflows + Adaptive Card)| discord
   min_severity: info        # info | warning | critical
+  routing:                  # severity → チャネル名(未記載の severity は default URL へ)
+    info: ops
+    warning: alerts
+    critical: alerts
+  # governance / reports チャネルは routing に載せず、発火側が channel= で明示指定する

@@ -8,13 +8,14 @@ config/system.yaml(技術設定)と .env(シークレット)を読み込む。
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -49,9 +50,26 @@ class FeedConfig(BaseModel):
     random_walk: RandomWalkConfig = Field(default_factory=RandomWalkConfig)
 
 
+_CHANNEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_VALID_SEVERITIES = frozenset({"info", "warning", "critical"})
+
+
 class NotifyConfig(BaseModel):
     backend: Literal["discord", "teams"] = "discord"
     min_severity: str = "info"
+    # severity → チャネル名(例 {"warning": "alerts"})。URL は環境変数
+    # <TEAMS_WORKFLOW_URL|DISCORD_WEBHOOK_URL>_<チャネル名大文字> から解決する(ADR-0003)
+    routing: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("routing")
+    @classmethod
+    def _validate_routing(cls, v: dict[str, str]) -> dict[str, str]:
+        for sev, ch in v.items():
+            if sev not in _VALID_SEVERITIES:
+                raise ValueError(f"routing のキーが不正: {sev!r}(info/warning/critical のみ)")
+            if not _CHANNEL_NAME_RE.match(ch or ""):
+                raise ValueError(f"チャネル名が不正: {ch!r}(小文字英数字と _、先頭は英字)")
+        return v
 
 
 class SystemConfig(BaseModel):
@@ -125,3 +143,23 @@ def discord_webhook_url() -> str | None:
 def teams_workflow_url() -> str | None:
     """Power Automate「Webhook 要求の受信時」フローの URL(SAS 署名 sig= を含む秘密)。"""
     return os.environ.get("TEAMS_WORKFLOW_URL") or None
+
+
+def _scan_channel_urls(prefix: str) -> dict[str, str]:
+    """`<prefix>_<CHANNEL>` 形式の環境変数を走査し {チャネル名(小文字): URL} を返す。"""
+    head = prefix + "_"
+    return {
+        key[len(head):].lower(): value
+        for key, value in os.environ.items()
+        if key.startswith(head) and value
+    }
+
+
+def teams_channel_urls() -> dict[str, str]:
+    """チャネル別 Workflow URL(TEAMS_WORKFLOW_URL_OPS 等)。"""
+    return _scan_channel_urls("TEAMS_WORKFLOW_URL")
+
+
+def discord_channel_urls() -> dict[str, str]:
+    """チャネル別 Discord Webhook URL(DISCORD_WEBHOOK_URL_ALERTS 等)。"""
+    return _scan_channel_urls("DISCORD_WEBHOOK_URL")

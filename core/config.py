@@ -61,6 +61,9 @@ class RuntimeConfig(BaseModel):
     log_dir: str = "var/logs"
     heartbeat_interval_sec: int = 30
     watchdog_stale_sec: int = 120
+    # ログ形式: plain(従来・人間可読)| json(CloudWatch Logs 取り込み用。ADR-0006)
+    log_format: Literal["plain", "json"] = "plain"
+    log_level: str = "INFO"
 
 
 class PaperConfig(BaseModel):

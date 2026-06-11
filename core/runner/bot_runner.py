@@ -345,7 +345,9 @@ def build_runner(bot_id: str, bar_sleep: bool = True) -> BotRunner:
 
 def run_paper_bot(bot_id: str) -> int:
     """`tc paper --bot <id>` 本体。ペーパーモード常駐。"""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    from core.logsetup import configure_logging
+
+    configure_logging()
     runner = build_runner(bot_id)
     try:
         asyncio.run(runner.run())

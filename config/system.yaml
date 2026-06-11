@@ -15,6 +15,8 @@ runtime:
   log_dir: var/logs
   heartbeat_interval_sec: 30
   watchdog_stale_sec: 120
+  log_format: plain        # plain(人間可読)| json(CloudWatch Logs 取り込み用。AWS では json — ADR-0006)
+  log_level: info
 
 paper:
   # ペーパー約定モデル(執行シミュレーションの技術パラメータ)

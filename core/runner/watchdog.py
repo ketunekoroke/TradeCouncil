@@ -66,7 +66,9 @@ def run_watchdog() -> int:
     interval = cfg.runtime.heartbeat_interval_sec
     stale_sec = cfg.runtime.watchdog_stale_sec
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    from core.logsetup import configure_logging
+
+    configure_logging()
     logger.info("watchdog 起動(間隔 %ss / 途絶しきい値 %ss)。停止は Ctrl+C", interval, stale_sec)
     try:
         while True:

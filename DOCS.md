@@ -9,7 +9,8 @@
 >   `BACKLOG.md` — アジャイル開発のタスク・アイデア管理
 > - `REQUIREMENTS.md` / `FEATURES.md` / `TESTCASES.md` — 管理表(要件↔機能↔検証)
 > - 一次資料は**常に現状を映すよう直接改訂**し、意思決定の経緯は `docs/adr/` に記録する
->   (ADR-0001: Windows/CLI 等の初期判断 / ADR-0002: Teams 通知・Notion ミラー方針)
+>   (ADR-0001: Windows/CLI 等の初期判断 / ADR-0002: Teams 通知・Notion ミラー方針 /
+>   ADR-0003: 専用 Team・マルチチャネル通知)
 
 ---
 
@@ -182,26 +183,27 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
 4. **日常運用**: 週次で `kpi` 確認 → 改善提案は proposals キュー → `approve/reject/defer`。
    review_after が到来したポリシーは月次会議で再上程(Phase 0 では手動確認: `policy list`)
 
-### Teams 通知のセットアップ(ADR-0002)
+### Teams 通知のセットアップ(ADR-0002 / ADR-0003)
 
 通知は Microsoft Teams(Power Automate Workflows + Adaptive Card)が既定。
-O365 Incoming Webhook コネクタは廃止済みのため使えない。
-**詳細手順(前提条件・画面操作・トラブルシューティング)は
+**専用 Team「TradeCouncil」+ 4チャネル**(📢ops=info / 🚨alerts=warning・critical /
+📜governance=決裁 / 📊reports=KPI)で運用する。O365 Incoming Webhook コネクタは廃止済み。
+**詳細手順(Team 作成・フロー4本・トラブルシューティング)は
 [docs/setup/teams-notification-setup.md](docs/setup/teams-notification-setup.md) 参照。**以下は要約:
 
-1. Teams の **Workflows** アプリ(または make.powerautomate.com)で、テンプレート
-   「**Webhook 要求を受信したらチャネルに投稿する**(Post to a channel when a webhook
-   request is received)」からフローを作成
-2. 投稿先のチーム/チャネルを選択して保存すると **HTTP POST URL** が発行される
-3. その URL を `.env` の `TEAMS_WORKFLOW_URL` に設定(URL は `sig=` の SAS 署名を含む
-   **秘密情報**。共有・コミット禁止 — pre-commit が検出する)
-4. 着信確認: `python -m scripts.cli kill` → Teams にカードが届く →(人間が)`resume`
-5. 注意:
-   - フローは**作成者アカウントに紐づく**(離任・ライセンス変更で停止する)
-   - Workflows は受信時に 202 を返すため、フロー内部の失敗(チャネル削除等)は
-     送信側から検知できない。**通知はベストエフォート**であり安全機構ではない
-   - Discord に切り替える場合は `config/system.yaml` の `notify.backend: discord` +
-     `.env` の `DISCORD_WEBHOOK_URL`
+1. 専用チーム「TradeCouncil」を作成し、4チャネル(運用通知/アラート/ガバナンス/レポート)を追加
+2. チャネルごとに Workflows テンプレート「**Webhook 要求を受信したらチャネルに投稿する**」で
+   フローを作成(命名: `TradeCouncil-<key>`)し、発行された URL を `.env` の
+   `TEAMS_WORKFLOW_URL_<KEY>`(OPS/ALERTS/GOVERNANCE/REPORTS)に設定。
+   `TEAMS_WORKFLOW_URL`(default)は未設定チャネルのフォールバック先 — **まず1本でも運用可**
+3. severity→チャネルの振り分けは `config/system.yaml` の `notify.routing`
+   (info→ops / warning→alerts / critical→alerts)。発火側は `channel="governance"` 等で明示も可能
+4. URL は `sig=` の SAS 署名を含む**秘密情報**(共有・コミット禁止 — pre-commit が検出)
+5. 着信確認: `python -m scripts.cli kill` → 🚨アラート にカード →(人間が)`resume`。
+   チャネル別疎通は手順書 §4 のワンライナー
+6. 注意: フローは**作成者アカウントに紐づく**(4本とも共同所有者を追加推奨)。
+   Workflows は 202 を返すためフロー内部の失敗は検知不能 — **通知はベストエフォート**。
+   Discord へは `notify.backend: discord` + `DISCORD_WEBHOOK_URL(_<KEY>)` で切替可
 
 ## 10. LLMバックエンドと SharePoint
 

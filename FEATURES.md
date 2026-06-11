@@ -46,7 +46,7 @@
 
 | ID | 機能 | 状態 | 実装/定義 | 関連要件 |
 |---|---|---|---|---|
-| FEAT-30 | Teams/Discord 通知(backend 切替。Teams は Power Automate Workflows へ Adaptive Card、severity 色 + FactSet。未設定時ログfallback) | 実装済 | [core/notify/notifier.py](core/notify/notifier.py) | REQ-O01 |
+| FEAT-30 | Teams/Discord 通知(backend 切替。Teams は Power Automate Workflows へ Adaptive Card、severity 色 + FactSet。マルチチャネルルーティング: 明示 channel > routing > default のフォールバック連鎖 — ADR-0003。未設定時ログfallback) | 実装済 | [core/notify/notifier.py](core/notify/notifier.py) | REQ-O01 |
 | FEAT-31 | watchdog(heartbeat 途絶検知 → incident + 通知) | 実装済 | [core/runner/watchdog.py](core/runner/watchdog.py) | REQ-O02 |
 | FEAT-32 | tc CLI 一式(test/db/paper/watchdog/status/kill/policy/approve/kpi/council/hooks) | 実装済 | [scripts/cli.py](scripts/cli.py) | — |
 | FEAT-33 | KPIレポート + 根拠連鎖の機械検証(orphan注文=0) | 実装済 | [feedback/kpi.py](feedback/kpi.py) | REQ-E05 |

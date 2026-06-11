@@ -41,7 +41,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-014 | hooks 単体: live/resume ブロック、generated/policies/prototype 保護、秘密検出 | stdin JSON を hooks に流して exit code 確認(FEATURES の FEAT-40〜41) | REQ-S01〜S03 |
 | TC-015 | pre-commit: 決裁レコードなしポリシー / .env / 秘密 を拒否 | ダミーをステージして `python scripts/hooks/pre_commit.py` | REQ-S01, S03 |
 | TC-016 | 人格 frontmatter の妥当性(name/backend/model が揃う) | 目視 or grep(8ファイル) | REQ-SC03 |
-| TC-017 | 通知: backend 切替・Adaptive Card 形式・severity 色・facts・切詰め・例外吸収・Workflow URL(sig付き)の秘密検出 | `pytest tests/notify` | REQ-O01, REQ-S01 |
+| TC-017 | 通知: backend 切替・Adaptive Card 形式・severity 色・facts・切詰め・例外吸収・チャネルルーティング(明示>routing>default のフォールバック連鎖)・Workflow URL(sig付き)の秘密検出 | `pytest tests/notify` | REQ-O01, REQ-S01 |
 | TC-018 | シークレット解決順(環境変数 → .env → settings.local.json、placeholder/空は除外) | `pytest tests/scripts` | REQ-S01 |
 
 ## P1(手動・主要パス)

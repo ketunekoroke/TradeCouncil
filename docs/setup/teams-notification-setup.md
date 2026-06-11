@@ -2,10 +2,10 @@
 
 | 項目 | 内容 |
 |---|---|
-| 日付 | 2026-06-11 |
-| 対象 | TradeCouncil の通知(FR-7.1)を Microsoft Teams で受信するためのセットアップ |
-| 所要時間 | 約10分 |
-| 関連 | ADR-0002 / DOCS.md §9(要約版)/ core/notify/notifier.py(実装) |
+| 日付 | 2026-06-11(同日改訂: 専用 Team + 4チャネル構成 — ADR-0003) |
+| 対象 | TradeCouncil の通知(FR-7.1)を専用 Team の複数チャネルで受信するためのセットアップ |
+| 所要時間 | 約30分(Team 作成 + フロー4本。まず default 1本だけなら約10分) |
+| 関連 | ADR-0002 / ADR-0003 / DOCS.md §9(要約版)/ core/notify/notifier.py(実装) |
 
 > **重要(2025年末の仕様変更)**: 従来の「Incoming Webhook」コネクタ(チャネル設定から
 > 追加するタイプ)は **Microsoft により廃止済み**で、新規作成できない。
@@ -19,14 +19,37 @@
 |---|---|
 | Microsoft 365 アカウント | 組織アカウント(Teams が使えること)。個人用 Teams(無料版)は Workflows 非対応 |
 | Power Automate ライセンス | ほとんどの M365 ビジネスプラン(Business Basic 以上 / E1 以上)に標準付属。今回使うのは標準コネクタのみで **Premium ライセンスは不要** |
-| 投稿先 | 通知を受け取るチーム/チャネルを事前に決めておく(例: チーム「TradeCouncil」> チャネル「運用通知」)。なければ先に Teams で作成する |
-| 権限 | 投稿先チャネルのメンバーであること(フロー作成者 = 投稿者として動作する) |
+| 投稿先 | 専用チーム「TradeCouncil」を新設する(下記 §1.1) |
+| 権限 | 投稿先チャネルのメンバーであること(フロー作成者 = 投稿者として動作する)。チーム作成が組織で制限されている場合は IT 管理者に依頼 |
 | ローカル | リポジトリのセットアップ済み(README クイックスタート)。`.env` ファイルが存在すること |
 
-## 2. フローの作成
+### 1.1 専用 Team とチャネルの作成
+
+1. Teams → [チーム] → **[チームを作成]** → 種類は「その他」、名前 **`TradeCouncil`**、
+   プライバシーは **プライベート** を推奨(取引データが流れるため)
+2. 作成したチームに以下の **4チャネル** を追加する([…] → [チャネルを追加]):
+
+| チャネル名(表示) | キー | 流すもの | severity 振り分け |
+|---|---|---|---|
+| 📢 運用通知 | `ops` | 約定・日次サマリ・info 全般 | info(routing) |
+| 🚨 アラート | `alerts` | 損失警告・停止イベント・heartbeat 途絶 | warning / critical(routing) |
+| 📜 ガバナンス | `governance` | 提案キュー・決裁結果・ポリシー変更・会議開催 | 発火側が明示指定 |
+| 📊 レポート | `reports` | 週次 KPI・月次レビュー | 発火側が明示指定 |
+
+> 🚨アラート はチャネル通知設定を「すべてのアクティビティ」にしておくと見逃しにくい。
+> チャネル構成の正式決定は第0回会議の P-11 決裁(これはたたき台 — ADR-0003)。
+> **全チャネル必須ではない**: URL 未設定のチャネル宛て通知は default(`TEAMS_WORKFLOW_URL`)へ
+> フォールバックするため、まず default 1本で始めて後から増やせる。
+
+## 2. フローの作成(チャネルごとに1本、計4本 + 任意で default 用1本)
 
 方法A(Teams 内で完結・推奨)と方法B(Power Automate ポータル)のどちらでもよい。
-作成されるフローは同一。
+作成されるフローは同一。**以下の手順をチャネルごとに繰り返す**。
+
+- フロー命名規約: **`TradeCouncil-<チャネルキー>`**(例 `TradeCouncil-alerts`)。
+  Workflows アプリの一覧での識別と、障害時の実行履歴調査(§6)のために必須
+- default 用(`TEAMS_WORKFLOW_URL`)は 📢運用通知 チャネルのフローと兼用してよい
+  (ops の URL を default にも設定する)
 
 ### 方法A: Teams の Workflows アプリから(推奨)
 
@@ -59,11 +82,20 @@
 
 ## 3. URL の設定(シークレットの取り扱い)
 
-コピーした URL を、リポジトリ直下の `.env` に設定する:
+コピーした各フローの URL を、リポジトリ直下の `.env` に設定する:
 
 ```dotenv
+# default(必須推奨。未設定チャネルのフォールバック先。ops と兼用可)
 TEAMS_WORKFLOW_URL=https://prod-XX.japaneast.logic.azure.com:443/workflows/...&sig=XXXX
+# チャネル別(設定したものだけ有効。未設定分は default へフォールバック)
+TEAMS_WORKFLOW_URL_OPS=https://...
+TEAMS_WORKFLOW_URL_ALERTS=https://...
+TEAMS_WORKFLOW_URL_GOVERNANCE=https://...
+TEAMS_WORKFLOW_URL_REPORTS=https://...
 ```
+
+severity からチャネルへの振り分けは `config/system.yaml` の `notify.routing`
+(既定: info→ops / warning→alerts / critical→alerts)。
 
 **取り扱い注意 — この URL は秘密情報である:**
 
@@ -88,16 +120,24 @@ notify:
 # 1) 設定の読み込み確認を兼ねてテストを実行(全緑であること)
 .venv\Scripts\python.exe -m scripts.cli test
 
-# 2) キルスイッチを ON にする(warning 通知が発火する)
+# 2) キルスイッチを ON にする(warning 通知 → routing 経由で 🚨アラート へ)
 .venv\Scripts\python.exe -m scripts.cli kill
 ```
 
-- 数秒以内に、指定したチャネルへ **黄色ヘッダの Adaptive Card**
-  (`[WARNING] TradeCouncil` + メッセージ)が届けば成功
+- 数秒以内に、🚨アラート チャネルへ **黄色ヘッダの Adaptive Card**
+  (`[WARNING] TradeCouncil` + メッセージ、フッターに `#alerts`)が届けば成功
 - 確認後、**人間の手で**解除する(エージェントからの resume は hooks がブロックする):
 
 ```powershell
 .venv\Scripts\python.exe -m scripts.cli resume
+```
+
+各チャネルの個別疎通はワンライナーで確認できる(カードのフッターの `#<チャネル名>` が
+期待どおりのチャネルに届いているかも併せて見る — フローの投稿先誤配線の検出):
+
+```powershell
+.venv\Scripts\python.exe -c "from core.notify import get_notifier; get_notifier().send('チャネル疎通テスト', 'info', channel='governance')"
+# channel= を ops / alerts / reports に変えて繰り返す
 ```
 
 届かない場合は §6 トラブルシューティングへ。
@@ -148,11 +188,12 @@ curl 等で手動テストしたい場合は上記 JSON をそのまま POST す
 | HTTP 404 | フローが削除されたか無効化されている。Workflows アプリでフローの状態(オン/オフ)を確認 |
 | しばらく使っていたら止まった | ①フロー所有者の退職・ライセンス変更(→ §7)②90日間トリガーされなかったフローは自動で無効化されることがある → フローをオンに戻す |
 | カードのレイアウトが崩れる | Adaptive Card v1.4 を使用(実装済み)。古い Teams クライアントの場合は更新する |
+| **特定チャネルだけ届かない** | ①`.env` の変数名 typo(`_OPS` / `_ALERTS` 等の綴り)を確認 — URL 未設定チャネルは default へフォールバックするためログに「URL 未設定 → default へフォールバック」の warning が出る ②該当フロー(`TradeCouncil-<key>`)の実行履歴を**フロー個別に**確認 ③カードのフッター `#<チャネル名>` と実際の着信チャネルが食い違う場合はフローの投稿先チャネル設定が誤配線 |
 
 ## 7. 運用上の注意
 
 - **フローは作成者個人に紐づく**。作成者が組織を離れる・ライセンスを失うと停止する。
-  長期運用では、フローの **[共有]** で共同所有者を追加しておくと安全
+  長期運用では、フローの **[共有]** で共同所有者を追加しておくと安全(**4フローすべてに**実施)
 - 通知は**ベストエフォート**であり安全機構ではない(ADR-0002)。
   停止の安全性はキルスイッチ(`var/run/KILL`)と fail-closed が担っており、
   通知が死んでいても取引の安全性は損なわれない

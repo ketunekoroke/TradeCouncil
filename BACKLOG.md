@@ -24,6 +24,7 @@
 | BL-007 | 運用者としてペーパーBOT 1体の24時間無人稼働試験を行いたい。なぜなら Phase 0 完了条件(設計書 §9)だから | BL-006 の後。bot + watchdog の2コンソール、全注文の根拠付きDB記録を確認 |
 | BL-008 | [要決裁] 決裁権者として Notion ミラー運用の採否を決め、採用なら初回 Notion DB を作成したい | docs/proposals/2026-06_notion-mirror-proposal.md を会議に付議 |
 | BL-009 | 運用者として日次サマリ・週次レポートを Teams カードで受け取りたい。なぜなら FR-7.1 の通知種別のうち約定・損失警告・日次サマリは発火点が未実装だから | risk/executor 側の発火点実装が必要(core/risk・core/execution を触るため risk-auditor 審査対象) |
+| BL-014 | 運用者として決裁イベントと KPI を専用チャネルで受け取りたい。なぜなら 📜governance・📊reports チャネルの発火点(`tc approve` 決裁時・`tc kpi` 集計時に `channel=` 指定で send)が未実装だから | scripts/cli 側のみで実装可(通知基盤は BL-013 で対応済み)。BL-009 と同時期に着手すると効率的 |
 | BL-010 | 開発者として Alembic によるスキーマ移行を導入したい。なぜなら create_all はカラム追加を反映できないから(docs/04 §5) | Phase 1 以降。ADR 起票してから着手 |
 
 ## アイデア / Icebox
@@ -39,6 +40,7 @@
 ## 完了
 
 ### Sprint 1(2026-06-11)
+- BL-013 ✅ 専用 Team + 4チャネル通知ルーティング(ops/alerts/governance/reports、notify.routing、チャネル別 URL とフォールバック連鎖、ADR-0003、手順書改訂、テスト 19件)
 - BL-012 ✅ シークレットをルート .env に集約(bridge_common に .env フォールバック追加。解決順: 環境変数 → .env → settings.local.json。tests/scripts 5件)
 - BL-011 ✅ Teams 通知の詳細セットアップ手順書(docs/setup/teams-notification-setup.md。DOCS.md §9 からリンク)
 - BL-001 ✅ Teams 通知(Power Automate Workflows + Adaptive Card、backend 切替、tests/notify 17件)

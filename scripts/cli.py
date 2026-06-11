@@ -11,6 +11,7 @@
   tc paper --bot <id>        ペーパーBOT起動(常駐)
   tc watchdog                heartbeat 監視(常駐)
   tc kpi                     KPI集計と decision_id 連鎖検証
+  tc snapshot [--output P]   DB の整合スナップショット(VACUUM INTO・バックアップ兼用)
 
 注意: 実弾(live)系コマンドは存在しない(Phase 0)。
 """
@@ -154,6 +155,31 @@ def cmd_kpi(_args: argparse.Namespace) -> int:
     return print_kpi_report()
 
 
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from core.config import get_config
+    from core.db import snapshot_db
+
+    source = get_config().db_path
+    if not source.exists():
+        print(f"DB が見つかりません: {source}(先に tc db init)", file=sys.stderr)
+        return 1
+    if args.output:
+        dest = Path(args.output)
+    else:
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        dest = source.parent / "snapshots" / f"tradecouncil-{stamp}.db"
+    try:
+        result = snapshot_db(dest, source=source)
+    except FileExistsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"snapshot 作成: {result}(source: {source})")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tc", description="TradeCouncil 運用CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -217,6 +243,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_kpi = sub.add_parser("kpi", help="KPI集計と根拠連鎖の検証")
     p_kpi.set_defaults(func=cmd_kpi)
+
+    p_snapshot = sub.add_parser("snapshot", help="DBの整合スナップショット(VACUUM INTO)")
+    p_snapshot.add_argument("--output", help="出力先パス(既定: var/snapshots/tradecouncil-<時刻>.db)")
+    p_snapshot.set_defaults(func=cmd_snapshot)
 
     return parser
 

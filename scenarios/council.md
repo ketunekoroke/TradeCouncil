@@ -84,6 +84,9 @@ CLAUDE.md の共通作法に従う(MAGI 人格と同じ仕組みで動く)。
 
 1. 議事録を `<root>/council/<日付>-<会議名>.md` に保存する
    (全ラウンドの発言・決裁事項・保留事項。冒頭に各ペルソナの backend/model を明記)
+   - 議事録(`council/*.md`)は監査テキストとして**開発機で git コミットする**
+     (本番は push しない。開発機からの閲覧経路 — ADR-0005)。
+     機微情報(APIキー・残高の生値等)は本文に書かない
 2. `python -m scripts.cli council log --session-id <id> --kind <kickoff|monthly|adhoc> --minutes <議事録パス>`
    で council_sessions に開催記録を残す
 3. **★P-01〜P-04 がすべて active になった場合**は明示的に報告する:

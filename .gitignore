@@ -48,6 +48,9 @@ dist/
 !/sharepoint/README.md
 !/local/**/README.md
 !/sharepoint/**/README.md
+# 会議議事録(.md)は監査テキストとして git 追跡する(ADR-0005)。メディアは除外のまま
+!/local/council/**/*.md
+!/sharepoint/council/**/*.md
 
 # ------------------------------------------------------------------------------
 # OS生成ファイル(全ディレクトリ共通)

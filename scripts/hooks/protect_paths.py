@@ -3,12 +3,13 @@
 - config/generated/  … 自動生成ビュー(tc policy sync 経由のみ)
 - config/policies/*.yaml … 決裁レコード(tc policy record 経由のみ。README は編集可)
 - prototype/         … MAGI プロトタイプ(編集禁止・参照のみ)
-- var/               … 実行時生成物
+- var/ / var-*/      … 実行時生成物(var-* は TC_VAR_DIR サンドボックス — ADR-0004)
 - 書き込み内容に APIキー・Webhook 等が含まれる場合もブロック
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -34,8 +35,8 @@ def main() -> None:
             )
         if "/prototype/" in file_path:
             deny("prototype/ は MAGI プロトタイプ(編集禁止・参照のみ)。CLAUDE.md 絶対ルール8")
-        if "/var/" in file_path and "/TradeCouncil/var/" in file_path:
-            deny("var/ は実行時生成物。手編集しない")
+        if re.search(r"/TradeCouncil/var(-[^/]+)?/", file_path):
+            deny("var/(および var-* サンドボックス)は実行時生成物。手編集しない")
 
     content = tool_input.get("content") or tool_input.get("new_string") or ""
     label = find_secret(content)

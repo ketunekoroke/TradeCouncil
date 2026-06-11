@@ -49,6 +49,12 @@ TEST_POLICY_TITLES: dict[str, str] = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _isolate_var_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    """開発者シェルの TC_VAR_DIR 残留からテストを隔離する(ADR-0004)。"""
+    monkeypatch.delenv("TC_VAR_DIR", raising=False)
+
+
 @pytest.fixture
 def db_session_factory(tmp_path: Path) -> sessionmaker[Session]:
     engine = create_db_engine(tmp_path / "test.db")

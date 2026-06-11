@@ -19,6 +19,38 @@ from pydantic import BaseModel, Field, field_validator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+_VAR_PREFIX = "var"
+
+
+def _var_base() -> Path | None:
+    """環境変数 TC_VAR_DIR を解決する。未設定・空なら None(従来挙動)。
+
+    絶対パスはそのまま、相対パスは PROJECT_ROOT 相対として解決する。
+    DB エンジン等はプロセス内でキャッシュされるため、TC_VAR_DIR は
+    プロセス起動前に確定させること(ADR-0004、docs/05 §3.3)。
+    """
+    raw = (os.environ.get("TC_VAR_DIR") or "").strip()
+    if not raw:
+        return None
+    p = Path(raw)
+    return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def resolve_runtime_path(rel: str) -> Path:
+    """system.yaml の実行時パスを解決する。
+
+    TC_VAR_DIR 設定時のみ `var/` 接頭辞を読み替える(run/・logs/ のサブ構造は維持)。
+    var/ 配下でないパスは常に PROJECT_ROOT 相対のまま。
+    """
+    normalized = rel.replace("\\", "/").strip("/")
+    base = _var_base()
+    if base is not None and (
+        normalized == _VAR_PREFIX or normalized.startswith(_VAR_PREFIX + "/")
+    ):
+        suffix = normalized[len(_VAR_PREFIX) + 1 :]
+        return base / suffix if suffix else base
+    return PROJECT_ROOT / rel
+
 
 class DbConfig(BaseModel):
     path: str = "var/tradecouncil.db"
@@ -87,15 +119,15 @@ class SystemConfig(BaseModel):
 
     @property
     def db_path(self) -> Path:
-        return PROJECT_ROOT / self.db.path
+        return resolve_runtime_path(self.db.path)
 
     @property
     def kill_flag_path(self) -> Path:
-        return PROJECT_ROOT / self.runtime.kill_flag
+        return resolve_runtime_path(self.runtime.kill_flag)
 
     @property
     def log_dir_path(self) -> Path:
-        return PROJECT_ROOT / self.runtime.log_dir
+        return resolve_runtime_path(self.runtime.log_dir)
 
     @property
     def policies_dir(self) -> Path:

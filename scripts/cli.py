@@ -9,6 +9,7 @@
   tc policy list|show|sync|record  ポリシーレジストリ操作
   tc approve|reject|defer    決裁キュー(proposals)への決裁
   tc paper --bot <id>        ペーパーBOT起動(常駐)
+  tc bot new <bot_id> --strategy <key>  戦略雛形4ファイルの一括生成(ADR-0007)
   tc watchdog                heartbeat 監視(常駐)
   tc kpi                     KPI集計と decision_id 連鎖検証
   tc snapshot [--output P]   DB の整合スナップショット(VACUUM INTO・バックアップ兼用)
@@ -151,6 +152,32 @@ def cmd_council(args: argparse.Namespace) -> int:
     return 2
 
 
+def cmd_bot(args: argparse.Namespace) -> int:
+    if args.bot_command == "new":
+        from pathlib import Path
+
+        from scripts.scaffold_bot import scaffold_bot
+
+        root = Path(__file__).resolve().parents[1]
+        try:
+            created = scaffold_bot(args.bot_id, args.strategy, root=root)
+        except (ValueError, FileExistsError, FileNotFoundError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print("生成しました:")
+        for path in created:
+            print(f"  {path.relative_to(root)}")
+        print()
+        print("次の手順(docs/06_戦略開発ガイド.md):")
+        print(f"  1. bots/__init__.py の STRATEGIES に \"{args.strategy}\" を登録する")
+        print("     (生成されたテストの登録検査が red → 登録して green にする)")
+        print("  2. 戦略カードに仮説・合格基準を書く(実装より先に)")
+        print("  3. テスト先行でロジックを実装 → tc test 全緑")
+        return 0
+    print("usage: tc bot new <bot_id> --strategy <key>", file=sys.stderr)
+    return 2
+
+
 def cmd_paper(args: argparse.Namespace) -> int:
     from core.runner.bot_runner import run_paper_bot
 
@@ -247,6 +274,13 @@ def build_parser() -> argparse.ArgumentParser:
     pc_log.add_argument("--kind", required=True, choices=["kickoff", "weekly", "monthly", "adhoc"])
     pc_log.add_argument("--minutes", help="議事録ファイルのパス")
     p_council.set_defaults(func=cmd_council)
+
+    p_bot = sub.add_parser("bot", help="BOT開発支援")
+    bot_sub = p_bot.add_subparsers(dest="bot_command", required=True)
+    pb_new = bot_sub.add_parser("new", help="戦略雛形4ファイル(bots/config/tests/カード)を一括生成")
+    pb_new.add_argument("bot_id", help="BOT ID(小文字 snake_case。config/bots/<bot_id>.yaml になる)")
+    pb_new.add_argument("--strategy", required=True, help="strategy_key(小文字 snake_case。bots/<key>.py になる)")
+    p_bot.set_defaults(func=cmd_bot)
 
     p_paper = sub.add_parser("paper", help="ペーパーBOT起動(常駐)")
     p_paper.add_argument("--bot", required=True, help="bot_id(config/bots/<id>.yaml)")

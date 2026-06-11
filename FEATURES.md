@@ -41,6 +41,8 @@
 | FEAT-23 | bot_runner(バー駆動ループ・candles保存・heartbeat・異常時incident+通知) | 実装済 | [core/runner/bot_runner.py](core/runner/bot_runner.py) | REQ-E04, REQ-O02 |
 | FEAT-24 | ダミー固定サイクル戦略(24h試験用・売買両経路) | 実装済 | [bots/dummy_random_walk.py](bots/dummy_random_walk.py) | — |
 | FEAT-25 | bots/ の経路分離(core.exchange/execution import 禁止の性質テスト) | 実装済 | [tests/risk/test_limits.py](tests/risk/test_limits.py) | REQ-R02 |
+| FEAT-26 | BOT スキャフォールド `tc bot new`(雛形4ファイル一括生成・既存拒否・enabled:false 既定・レジストリ登録はテスト駆動誘導 — ADR-0007) | 実装済 | [scripts/scaffold_bot.py](scripts/scaffold_bot.py) | REQ-N02 |
+| FEAT-27 | 戦略カタログ(1戦略=1カード・状態遷移 draft→…→retired・学び append-only・数値は DB 参照) | 仕様 | [docs/strategies/README.md](docs/strategies/README.md) | REQ-N01 |
 
 ## 監視・運用・CLI
 

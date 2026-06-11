@@ -12,7 +12,7 @@
 
 ---
 
-## 今スプリント(Sprint 7: 未開始)
+## 今スプリント(Sprint 8: 未開始)
 
 (次の作業開始時にプロダクトバックログから移動する)
 
@@ -33,6 +33,8 @@
 | BL-021 | 運用者として AWS インフラ(EC2/IAM/EBS/S3 + CloudWatch Agent + systemd)を構築したい。なぜなら paper 常駐の本番が必要だから | docs/setup/aws-architecture.md §2-3。SSH 鍵・git 一方向 pull デプロイ・`log_format: json`。BL-017(SSH 読取)と接続 |
 | BL-022 | 運用者として取引ダッシュボードを Teams タブの Power BI で見たい。なぜならトランザクションを可視化したいから | 主要テーブル→Parquet エクスポート(systemd timer、tc snapshot 入力)→ S3 → Glue/Athena → Power BI(Teams タブ)。aws-architecture.md §4 |
 | BL-023 | 運用者として CloudWatch アラートを Teams に流したい。なぜなら重大イベント(heartbeat 途絶等)を即時に知りたいから | CloudWatch Alarm → SNS → 既存 Teams 通知(notifier 連携)。aws-architecture.md §5 |
+| BL-029 | 開発者として最小バックテストエンジン(CSV/合成データで Strategy を回し PF・最大DD・取引数を算出)を導入したい。なぜなら P-06 ゲート基準(PF>1.2 / DD<15% / 100取引)の証拠を作る場が無く、戦略カードの「検証結果」を埋められないから | docs/02 §フェーズ1。vectorbt/backtesting.py 採用判断は ADR 起票してから。BL-028 の戦略カードと接続 |
+| BL-030 | 運用者として実戦略1本目(移動平均クロスのトレンドフォロー)を実装しペーパー稼働させたい。なぜなら docs/02 フェーズ1の中核であり、ダミー以外の戦略でノウハウ蓄積サイクルを実証したいから | `tc bot new` で雛形生成 → 戦略カード先行 → テスト先行(docs/06 のフロー実証)。検証は BL-029 のバックテスト or RandomWalk 試走 |
 | BL-017 | 運用者としてサーバ上の Claude Code 運用(claude -p 定型ジョブ・SSH 障害調査)を整備したい。なぜなら AI が本番実態を直接観測できる必要があるから(docs/05 §5.3) | BL-016 の後。hooks 同梱・直接編集禁止ルールの確認手順を含む。**SSH ライブ読取(tc status/kpi/policy list)と tc snapshot の SharePoint/scp 配布**(docs/setup/remote-data-access.md)も整備。Phase 4 の週次レビューと接続 |
 
 ## アイデア / Icebox
@@ -45,6 +47,9 @@
 - llm_usage テーブルへの記録実装(LLMコストメーター、Phase 2 のニュースパイプラインと同時)
 
 ## 完了
+
+### Sprint 7(2026-06-12)
+- BL-028 ✅ 戦略ナレッジ基盤(ADR-0007・docs/06_戦略開発ガイド・docs/strategies/ 戦略カタログ=1戦略1カード・学び append-only・数値は DB 真実源)+ `tc bot new` スキャフォールド(雛形4ファイル一括生成・既存拒否・enabled:false 既定・レジストリ登録はテスト駆動誘導。tests/bots 12件、162件緑、手動検証済み)。バックテストは BL-029、実戦略1本目は BL-030 に分離
 
 ### Sprint 6(2026-06-12)
 - BL-006 ✅ 第0回意思決定会議を開催(P-01〜P-05 を決裁・active 化、**fail-closed 解除**。P-02 はレバ枠5.0の paper テスト条件付き修正承認、P-03 は緩和値修正承認、P-05 は骨格承認+しきい値条件付き保留。P-06〜P-12 は次回会議へ持ち越し。議事録: local/council/2026-06-12-第0回意思決定会議.md。派生起票: BL-024〜BL-027)

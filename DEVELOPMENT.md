@@ -27,7 +27,37 @@ python -m venv .venv
 ```
 
 - 編集後は hooks が自動で高速テストを回す(core/bots/tests の .py 編集時)
-- `core/risk/`・`core/execution/` の変更は**テスト先行**(tests を先に書く)
+- テスト先行(テストファースト)は全モジュールの原則。`core/risk/`・`core/execution/` は**必須**
+
+## 開発サイクル(1 BACKLOG アイテム = 6ステップ — docs/05 §1)
+
+| # | ステップ | 内容 |
+|---|---|---|
+| ① | BL 選択 | BACKLOG.md のアイテムを「今スプリント」へ |
+| ② | docs 先行更新 | 仕様・設計の改訂を実装に先行(ドキュメント駆動)。大きな判断は ADR |
+| ③ | テスト先行 | 受け入れ条件をテストに翻訳(red 確認) |
+| ④ | 実装 | `python -m scripts.cli test` 全緑まで |
+| ⑤ | 管理表同期 | DOCS → REQUIREMENTS → FEATURES → TESTCASES |
+| ⑥ | コミット | Conventional Commits。BL を「完了」へ |
+
+作業単位は **1 BL = 1 モジュール境界**を原則とし、超えるなら BL を分割する(LLM コスト統制 — docs/05 §2)。
+
+## サンドボックス(TC_VAR_DIR — docs/05 §3.3)
+
+実行時生成物一式(DB・KILL・ログ)を別ディレクトリに差し替えて「作って壊す」検証環境を作れる。
+config/(ポリシー)と .env は本体と共有(fail-closed 状態が本番と一致したまま検証できる)。
+
+```powershell
+$env:TC_VAR_DIR = "var-sandbox"          # プロセス起動前に設定(相対= repo 直下。絶対パス可)
+.venv\Scripts\python.exe -m scripts.cli db init
+.venv\Scripts\python.exe -m scripts.cli paper --bot dummy_rw
+# 検証後の後片付け(ディレクトリごと破棄)
+Remove-Item Env:TC_VAR_DIR
+Remove-Item -Recurse -Force var-sandbox
+```
+
+- 命名規約は `var-<name>`(gitignore・hooks 保護の対象)
+- シェルに TC_VAR_DIR が残ると以後の CLI が別環境を向く — `status` のパス表示で確認。テストは conftest が自動隔離
 
 ## 編集対象ファイル
 
@@ -116,7 +146,7 @@ chore: update dependencies
 
 ## 困った時
 
-- 仕様が不明 → `docs/01〜03` を読む。なければ利用者(決裁権者)に質問
+- 仕様が不明 → `docs/01〜05` を読む。なければ利用者(決裁権者)に質問
 - リスク・ガバナンスに触る → risk-auditor サブエージェントで審査
 - 大きな設計判断 → プランモードで提案し、承認後に着手 + ADR 起票
 - 「ポリシーの値を変えたい」→ 開発作業ではなく**会議の議題**(「臨時会議」と発話)

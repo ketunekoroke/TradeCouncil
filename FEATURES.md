@@ -50,6 +50,7 @@
 | FEAT-31 | watchdog(heartbeat 途絶検知 → incident + 通知) | 実装済 | [core/runner/watchdog.py](core/runner/watchdog.py) | REQ-O02 |
 | FEAT-32 | tc CLI 一式(test/db/paper/watchdog/status/kill/policy/approve/kpi/council/hooks) | 実装済 | [scripts/cli.py](scripts/cli.py) | — |
 | FEAT-33 | KPIレポート + 根拠連鎖の機械検証(orphan注文=0) | 実装済 | [feedback/kpi.py](feedback/kpi.py) | REQ-E05 |
+| FEAT-34 | TC_VAR_DIR サンドボックス(var/ 接頭辞パスの読み替え・動的解決・var-* の gitignore/hooks 保護) | 実装済 | [core/config.py](core/config.py) | REQ-O04 |
 
 ## 安全フック
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -49,6 +50,7 @@ class FeedConfig(BaseModel):
 
 
 class NotifyConfig(BaseModel):
+    backend: Literal["discord", "teams"] = "discord"
     min_severity: str = "info"
 
 
@@ -118,3 +120,8 @@ def get_config() -> SystemConfig:
 
 def discord_webhook_url() -> str | None:
     return os.environ.get("DISCORD_WEBHOOK_URL") or None
+
+
+def teams_workflow_url() -> str | None:
+    """Power Automate「Webhook 要求の受信時」フローの URL(SAS 署名 sig= を含む秘密)。"""
+    return os.environ.get("TEAMS_WORKFLOW_URL") or None

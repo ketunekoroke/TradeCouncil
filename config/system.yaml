@@ -33,5 +33,6 @@ feed:
     seed: null              # null = 起動毎にランダム / テストでは固定する
 
 notify:
-  # Discord Webhook URL は .env(DISCORD_WEBHOOK_URL)から読む。ここに書かない
+  # 通知先 URL は .env(TEAMS_WORKFLOW_URL / DISCORD_WEBHOOK_URL)から読む。ここに書かない
+  backend: teams            # teams(Power Automate Workflows + Adaptive Card)| discord
   min_severity: info        # info | warning | critical

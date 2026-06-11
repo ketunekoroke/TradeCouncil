@@ -2,6 +2,7 @@
   "//": "このファイルは Git 管理されるテンプレート。コピーして実値を入れて使う。",
   "//copy": "cp .claude/settings.local.json.example .claude/settings.local.json (Git追跡外)",
   "//note": "実キーを書いた settings.local.json は .gitignore 済み。絶対にコミットしないこと。",
+  "//recommended": "シークレットは原則ルートの .env に集約する(.env.example 参照)。解決順は 環境変数 → .env → このファイルの env。このファイルの env は後方互換と Claude Code セッションへの注入用。両方に書く必要はない。",
   "env": {
     "//OPENAI_API_KEY": "人格を backend: openai で動かす場合のみ必須。OpenAI の API キー。",
     "OPENAI_API_KEY": "sk-REPLACE_WITH_YOUR_KEY",

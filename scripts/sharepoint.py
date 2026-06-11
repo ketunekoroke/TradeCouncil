@@ -22,7 +22,7 @@ name は folders マップのキー(input / media-output / reviews / deliberatio
 
 設定(prototype/sharepoint.config.json、非機密・追跡):
   enabled / site_url / drive / root(遠隔基点フォルダ)/ folders(ローカル名 ↔ 遠隔名)
-シークレット(環境変数 → .claude/settings.local.json の env、bridge_common と同じ解決):
+シークレット(環境変数 → ルートの .env → .claude/settings.local.json の env、bridge_common と同じ解決):
   MAGI_SHAREPOINT_TENANT_ID / MAGI_SHAREPOINT_CLIENT_ID / MAGI_SHAREPOINT_CLIENT_SECRET
   (任意)MAGI_SHAREPOINT_SITE_URL / MAGI_SHAREPOINT_DRIVE で config を上書き
 Azure 側: アプリ登録 + アプリケーション許可 Sites.ReadWrite.All に管理者同意が必要。
@@ -126,7 +126,7 @@ def get_token(cfg):
         raise SystemExit(
             "error: SharePoint の認証情報が未設定です: "
             + ", ".join(missing)
-            + "\n環境変数か .claude/settings.local.json の env に設定してください。"
+            + "\nルートの .env(推奨)か環境変数、または .claude/settings.local.json の env に設定してください。"
         )
     url = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
     body = urllib.parse.urlencode(

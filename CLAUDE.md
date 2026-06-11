@@ -86,7 +86,7 @@ echo "<ラウンド入力>" | python scripts/ask_openai.py \
 ```
 
 - `--system-file` のフロントマターは自動除去され、本文だけがシステムプロンプトになる
-- 必要環境変数: `OPENAI_API_KEY` / `GEMINI_API_KEY`(環境変数優先 → `.claude/settings.local.json` の env)
+- 必要環境変数: `OPENAI_API_KEY` / `GEMINI_API_KEY`(解決順: 環境変数 → ルートの `.env`(推奨・シークレット集約先)→ `.claude/settings.local.json` の env)
 - **リトライ/タイムアウト**: `scripts/bridge_common.py` が一過性HTTPエラー(429/5xx)を指数バックオフで
   自動再試行(`MAGI_HTTP_MAX_RETRIES` 既定4 / `MAGI_HTTP_TIMEOUT` 既定180秒)。空応答・拒否応答は
   `MAGI_GEN_MAX_RETRIES`(既定1)再試行 → それでも失敗ならファシリテーターが指示を言い換えて再実行

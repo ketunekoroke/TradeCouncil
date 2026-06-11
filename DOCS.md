@@ -208,7 +208,9 @@ O365 Incoming Webhook コネクタは廃止済みのため使えない。
 - 人格ごとに backend(claude / openai / gemini)を frontmatter で指定。openai/gemini は
   `scripts/ask_openai.py` / `ask_gemini.py` ブリッジ経由(リトライ・フォールバック・
   ファイル添付・履歴渡し対応)。詳細は `CLAUDE.md`「人格ごとのLLMバックエンド選択」
-- API キー: 環境変数 → `.claude/settings.local.json`(`.example` をコピー)
+- API キー等のシークレットは**ルートの `.env` に集約**(`.env.example` をコピー。通知 URL・
+  OpenAI/Gemini キー・SharePoint 認証をすべてここに書ける)。解決順: 環境変数 → `.env` →
+  `.claude/settings.local.json` の env(後方互換)
 - SharePoint 連携(任意): `sharepoint.config.json` の `enabled` で入出力 root が
   `local/` ⇔ `sharepoint/` に切り替わる。同期は `python scripts/sharepoint.py pull|push`。
   Azure アプリ登録は `prototype/documents/sharepoint-azure-app-setup.md` 参照

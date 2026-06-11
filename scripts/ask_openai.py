@@ -15,7 +15,7 @@ provider: openai を指定した人格を、ファシリテーター(Claude Code
   その他テキスト(.txt/.md/.csv/.json) … そのままテキストとして注入
 
 共通処理(キー解決・フロントマター除去・Office抽出・HTTP など)は bridge_common.py を参照。
-環境変数(無ければ .claude/settings.local.json の env を読む):
+環境変数(解決順: 環境変数 → ルートの .env → .claude/settings.local.json の env):
   OPENAI_API_KEY   必須。OpenAI の API キー。
   OPENAI_BASE_URL  任意。既定 https://api.openai.com/v1 (Azure/プロキシ用に上書き可)。
   MAGI_HTTP_MAX_RETRIES  任意。一過性エラー(429/5xx・接続タイムアウト)の最大再試行回数(既定 4)。
@@ -47,8 +47,8 @@ def _require_key():
     api_key = bc.get_setting("OPENAI_API_KEY")
     if not api_key:
         raise SystemExit(
-            "error: OPENAI_API_KEY が未設定です。環境変数で渡すか、"
-            ".claude/settings.local.json の env に実キーを設定してください"
+            "error: OPENAI_API_KEY が未設定です。ルートの .env(推奨)か環境変数、"
+            "または .claude/settings.local.json の env に実キーを設定してください"
         )
     return api_key
 

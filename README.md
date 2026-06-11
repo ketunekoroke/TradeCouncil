@@ -57,8 +57,8 @@ powercfg /change standby-timeout-ac 0    # スリープ無効化(24h試験のた
 ### 4. MAGI シナリオ(合議・資料レビュー・ブレスト)
 
 リポジトリ直下の `claude` でそのまま使える(例:「議題: ○○についてどう思う?」)。
-OpenAI / Gemini 人格を使う場合は `.claude/settings.local.json.example` をコピーして
-API キーを設定する。詳細は [DOCS.md](DOCS.md)。
+OpenAI / Gemini 人格を使う場合は `.env` に API キーを設定する(シークレットは
+通知 URL・SharePoint 認証も含め `.env` に集約。`.env.example` 参照)。詳細は [DOCS.md](DOCS.md)。
 
 ## CLI 一覧(`python -m scripts.cli ...`)
 

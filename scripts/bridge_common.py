@@ -2,7 +2,8 @@
 """bridge_common.py — MAGI の LLM ブリッジで共有するプロバイダ非依存ヘルパー群。
 
 ask_openai.py(ChatGPT)と ask_gemini.py(Gemini)が共通で使う:
-  - API キー解決(環境変数 → .claude/settings.local.json の env、placeholder 除外)
+  - API キー解決(環境変数 → ルートの .env → .claude/settings.local.json の env、
+    placeholder 除外)。シークレットは原則ルートの .env に集約する
   - 人格定義のフロントマター/先頭HTMLコメント除去(本文=システムプロンプト化)
   - 添付ファイルの種別判定とローカル抽出(Office)/読み込み(テキスト)
   - base64 化・MIME 推定・HTTP(JSON / multipart)ヘルパー
@@ -51,19 +52,48 @@ def settings_env():
         return {}
 
 
+def parse_env_file(path):
+    """dotenv 形式(KEY=VALUE)のファイルを dict にする。標準ライブラリのみで実装。
+    コメント行(#)・空行・export 接頭辞を許容し、値の両端の引用符は剥がす。"""
+    env = {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):]
+                key, _, val = line.partition("=")
+                key, val = key.strip(), val.strip()
+                if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+                    val = val[1:-1]
+                if key:
+                    env[key] = val
+    except OSError:
+        return {}
+    return env
+
+
+def dotenv_env():
+    """リポジトリルートの .env を読む(あれば)。シークレットの正本はここに集約する。"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    return parse_env_file(os.path.join(here, os.pardir, ".env"))
+
+
 def get_setting(*names):
-    """環境変数を優先し、無ければ settings.local.json の env を見る。
+    """環境変数 → ルートの .env → settings.local.json の env の順に解決する。
     複数の名前を渡すと先に見つかったものを返す(例: GEMINI_API_KEY, GOOGLE_API_KEY)。
-    placeholder("...REPLACE...")は未設定扱い。"""
+    placeholder("...REPLACE...")・空文字は未設定扱い。"""
     for name in names:
         val = os.environ.get(name)
         if val:
             return val
-    env = settings_env()
-    for name in names:
-        val = env.get(name)
-        if val and "REPLACE" not in val:
-            return val
+    for source in (dotenv_env(), settings_env()):
+        for name in names:
+            val = source.get(name)
+            if val and "REPLACE" not in val:
+                return val
     return None
 
 

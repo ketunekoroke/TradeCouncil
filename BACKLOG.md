@@ -39,6 +39,7 @@
 ## 完了
 
 ### Sprint 1(2026-06-11)
+- BL-012 ✅ シークレットをルート .env に集約(bridge_common に .env フォールバック追加。解決順: 環境変数 → .env → settings.local.json。tests/scripts 5件)
 - BL-011 ✅ Teams 通知の詳細セットアップ手順書(docs/setup/teams-notification-setup.md。DOCS.md §9 からリンク)
 - BL-001 ✅ Teams 通知(Power Automate Workflows + Adaptive Card、backend 切替、tests/notify 17件)
 - BL-002 ✅ docs/04_データベース設計書.md(ER図・23テーブル仕様・マイグレーション方針・ID規約)

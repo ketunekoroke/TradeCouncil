@@ -2,7 +2,7 @@
 """list_models.py — 各プロバイダで現在使えるモデル名を一覧表示する補助ツール。
 
 人格の frontmatter(backend / model)に何を書けるかを確認するための道具。
-API キーは bridge_common 経由で解決(環境変数 → .claude/settings.local.json の env)。
+API キーは bridge_common 経由で解決(環境変数 → ルートの .env → .claude/settings.local.json の env)。
 モデル ID は随時増減するため、これで最新を取得して DOCS.md のスナップショットを更新する。
 
 使い方:

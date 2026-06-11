@@ -1,0 +1,21 @@
+# 決裁済みポリシー — 手編集禁止(変更は tc policy record 経由のみ)
+policy_id: P-04
+title: セーフガード運用
+status: active
+version: 1
+value:
+  stale_data_sec: 120
+  cb_price_jump_pct_1m: 5.0
+  cb_max_spread_bps: 30
+decision:
+  decision_id: D-P-04-v001
+  decided_by: owner
+  action: modify_approve
+  channel: sync_council
+  session_ref: council-0
+  basis_refs:
+  - docs/03 §5 P-04
+  - 第0回意思決定会議 P-04 審議(バー間隔60秒の実装確認を経て3名収斂の案Aを採択。jump 5.0 は全員一致。veto なし)
+  - local/council/2026-06-12-第0回意思決定会議.md
+  decided_at: '2026-06-12T05:25:13+09:00'
+review_after: '2026-07-10'

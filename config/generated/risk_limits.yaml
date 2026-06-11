@@ -1,0 +1,35 @@
+# ============================================================
+# AUTO-GENERATED — 手編集禁止
+# このファイルは active なポリシーから tc policy sync で生成される
+# 実行用の確認ビューであり、システムはレジストリを直接読む
+# ============================================================
+P-02:
+  title: レバレッジ規程
+  value:
+    account_max_effective: 5.0
+    hard_ceiling: 5.0
+    per_asset_class:
+      bond_etf: 0.0
+      crypto_margin: 0.0
+      crypto_spot: 1.0
+      equity_foreign: 0.0
+      equity_jp: 0.0
+      futures: 0.0
+      fx: 0.0
+  version: 1
+P-03:
+  title: 口座リスク上限
+  value:
+    max_daily_loss_pct: 3.0
+    max_total_exposure_pct: 60.0
+    max_weekly_drawdown_pct: 5.0
+    per_bot_max_positions: 3
+    per_trade_max_loss_pct: 1.0
+  version: 1
+P-04:
+  title: セーフガード運用
+  value:
+    cb_max_spread_bps: 30
+    cb_price_jump_pct_1m: 5.0
+    stale_data_sec: 120
+  version: 1

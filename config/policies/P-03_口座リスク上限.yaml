@@ -1,0 +1,23 @@
+# 決裁済みポリシー — 手編集禁止(変更は tc policy record 経由のみ)
+policy_id: P-03
+title: 口座リスク上限
+status: active
+version: 1
+value:
+  max_daily_loss_pct: 3.0
+  max_weekly_drawdown_pct: 5.0
+  per_trade_max_loss_pct: 1.0
+  max_total_exposure_pct: 60.0
+  per_bot_max_positions: 3
+decision:
+  decision_id: D-P-03-v001
+  decided_by: owner
+  action: modify_approve
+  channel: sync_council
+  session_ref: council-0
+  basis_refs:
+  - docs/03 §5 P-03
+  - 第0回意思決定会議 P-03 審議(利用者は案C=momentum 緩和値を選択。veto なし・反対意見3名は note 記録)
+  - local/council/2026-06-12-第0回意思決定会議.md
+  decided_at: '2026-06-12T05:10:55+09:00'
+review_after: '2026-07-10'

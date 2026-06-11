@@ -1,0 +1,28 @@
+# 決裁済みポリシー — 手編集禁止(変更は tc policy record 経由のみ)
+policy_id: P-02
+title: レバレッジ規程
+status: active
+version: 1
+value:
+  account_max_effective: 5.0
+  per_asset_class:
+    crypto_spot: 1.0
+    crypto_margin: 0.0
+    equity_jp: 0.0
+    equity_foreign: 0.0
+    futures: 0.0
+    fx: 0.0
+    bond_etf: 0.0
+  hard_ceiling: 5.0
+decision:
+  decision_id: D-P-02-v001
+  decided_by: owner
+  action: modify_approve
+  channel: sync_council
+  session_ref: council-0
+  basis_refs:
+  - docs/03 §5 P-02
+  - '第0回意思決定会議 P-02 審議(利用者提案=案C: 動作テスト目的の5.0。risk_manager が veto を条件付き取り下げ)'
+  - local/council/2026-06-12-第0回意思決定会議.md
+  decided_at: '2026-06-12T04:51:39+09:00'
+review_after: '2026-07-10'

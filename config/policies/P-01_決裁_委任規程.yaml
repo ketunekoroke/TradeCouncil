@@ -1,0 +1,21 @@
+# 決裁済みポリシー — 手編集禁止(変更は tc policy record 経由のみ)
+policy_id: P-01
+title: 決裁・委任規程
+status: active
+version: 1
+value:
+  delegation:
+    enabled: false
+    scopes: []
+decision:
+  decision_id: D-P-01-v001
+  decided_by: owner
+  action: approve
+  channel: sync_council
+  session_ref: council-0
+  basis_refs:
+  - docs/03 §5 P-01
+  - 第0回意思決定会議 P-01 審議(委任なし4対1・veto行使なし)
+  - local/council/2026-06-12-第0回意思決定会議.md
+  decided_at: '2026-06-12T04:23:15+09:00'
+review_after: '2026-07-10'

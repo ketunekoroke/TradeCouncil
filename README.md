@@ -97,7 +97,7 @@ TradeCouncil/
 ├── scenarios/     会議・合議等のプロトコル(council / deliberation / ...)
 ├── scripts/       tc CLI / LLMブリッジ(OpenAI/Gemini)/ メディア変換 / SharePoint / hooks
 ├── tests/         risk はカバレッジ90%ゲート
-├── local/ sharepoint/  シナリオ入出力ルート(切替は sharepoint.config.json)
+├── workspace/     シナリオ入出力の単一ルート(SharePoint 連携時は自動 sync — ADR-0009)
 ├── var/           実行時生成物(DB・キルフラグ・ログ。gitignore)
-└── prototype/     MAGI プロトタイプ(独立・編集禁止。利用は cd prototype && claude)
+└── prototype/     旧 MAGI プロトタイプ(取り込み済み・編集禁止・削除判断待ち BL-039)
 ```

@@ -9,13 +9,14 @@
 
 正式仕様の一次資料: `docs/01_要件定義書.md` / `docs/02_基本設計書.md`(特に §1.5)/
 `docs/03_運営規程・第0回アジェンダ.md` / `docs/04_データベース設計書.md` /
-`docs/05_開発フロー・実行環境方針.md` / `docs/06_戦略開発ガイド.md`。大きな判断の経緯は
-`docs/adr/` に、戦略のノウハウ(仮説・根拠・学び)は `docs/strategies/`(戦略カタログ)に
-記録されている。
+`docs/05_開発フロー・実行環境方針.md` / `docs/06_戦略開発ガイド.md` /
+`docs/07_シナリオ・人格基盤.md`(人格哲学・シナリオ詳細・LLMブリッジ内部仕様)。
+大きな判断の経緯は `docs/adr/` に、戦略のノウハウ(仮説・根拠・学び)は
+`docs/strategies/`(戦略カタログ)に記録されている。
 
-加えて本リポジトリは **MAGI 合議システムの機能一式**(3人格・シナリオ・LLMブリッジ)を
-ルートで実行できる。`prototype/` はその元になったプロトタイプであり、**独立した参照資料
-(編集禁止)**。利用は `cd prototype && claude`。
+本リポジトリは **MAGI 合議システムの機能一式**(3人格・シナリオ・LLMブリッジ)を
+ルートで実行できる。`prototype/` はその元になったプロトタイプで、**機能・ドキュメントとも
+ルートへ取り込み済み(2026-06-13・BL-038)**。参照不要・編集禁止のまま削除判断待ち(BL-039)。
 
 ---
 
@@ -164,7 +165,7 @@ SharePoint 連携時(enabled=true)の作法: **シナリオ開始時と成果物
 7. **fail-closed(No Policy, No Trade)**: 必須ポリシー(P-01〜P-04)が active でない領域では
    発注を拒否する実装を維持する。たたき台の数値を「既定値」としてハードコードしない —
    値は常に決裁済みポリシーから読む(キー欠落も拒否)
-8. **prototype/ を編集しない**(独立した参照資料)。`workspace/` の生成物、
+8. **prototype/ を編集しない**(取り込み済みの旧プロトタイプ・削除判断待ち BL-039)。`workspace/` の生成物、
    `config/policies/`・`config/generated/`・`var/` を開発作業で手編集しない
 
 ## アーキテクチャ要約
@@ -222,7 +223,7 @@ SharePoint 連携時(enabled=true)の作法: **シナリオ開始時と成果物
 
 ## ドキュメント同期ルール
 
-仕様・機能を変更したら: `docs/`(一次資料 01〜06。**直接改訂してよい**。大きな判断の経緯は
+仕様・機能を変更したら: `docs/`(一次資料 01〜07。**直接改訂してよい**。大きな判断の経緯は
 ADR に記録)→ `DOCS.md` → `REQUIREMENTS.md` → `FEATURES.md` → `TESTCASES.md` を併せて
 更新する。**ドキュメント駆動**: docs の改訂は実装に先行させる(docs/05 §1)。
 `core/db/models.py` の変更時は `docs/04_データベース設計書.md` を必ず併せて更新する。
@@ -240,7 +241,7 @@ ADR に記録)→ `DOCS.md` → `REQUIREMENTS.md` → `FEATURES.md` → `TESTCAS
 `core/`(governance・risk・market・exchange・execution・runner・notify・db)、`bots/`(戦略。新規作成は `tc bot new` → docs/06)、
 `feedback/`(KPI)、`scenarios/`(会議・合議等のプロトコル)、`scripts/`(CLI・LLMブリッジ・hooks)、
 `tests/`、`workspace/`(シナリオ入出力。SharePoint 同期対象 — ADR-0009)、`var/`(実行時生成物・gitignore)、
-`prototype/`(MAGIプロトタイプ・編集禁止)
+`prototype/`(取り込み済み旧プロトタイプ・編集禁止・BL-039 で削除判断)
 
 ## 現在のフェーズ
 

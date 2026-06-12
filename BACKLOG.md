@@ -12,7 +12,7 @@
 
 ---
 
-## 今スプリント(Sprint 10: 未開始)
+## 今スプリント(Sprint 11: 未開始)
 
 (次の作業開始時にプロダクトバックログから移動する)
 
@@ -40,6 +40,7 @@
 | BL-037 | 開発者として pandas-ta によるローカル指標計算基盤(bots/ から使える純関数群)を整備したい。なぜならインジケータは外部取得でなく OHLCV からの計算にすれば規約リスクゼロ・バックテスト再現性が確保できるから | BL-030(実戦略1本目)・BL-029(バックテスト)の前提部品 |
 | BL-029 | 開発者として最小バックテストエンジン(CSV/合成データで Strategy を回し PF・最大DD・取引数を算出)を導入したい。なぜなら P-06 ゲート基準(PF>1.2 / DD<15% / 100取引)の証拠を作る場が無く、戦略カードの「検証結果」を埋められないから | docs/02 §フェーズ1。vectorbt/backtesting.py 採用判断は ADR 起票してから。BL-028 の戦略カードと接続 |
 | BL-030 | 運用者として実戦略1本目(移動平均クロスのトレンドフォロー)を実装しペーパー稼働させたい。なぜなら docs/02 フェーズ1の中核であり、ダミー以外の戦略でノウハウ蓄積サイクルを実証したいから | `tc bot new` で雛形生成 → 戦略カード先行 → テスト先行(docs/06 のフロー実証)。検証は BL-029 のバックテスト or RandomWalk 試走 |
+| BL-039 | 開発者として prototype/ の削除可否を判断したい(BL-038 の取り込み検収後)。なぜなら取り込み済みの旧仕様文書が残り続けると AI・人間双方の誤読リスクになるから | git 履歴には永久に残るためいつでも参照可。削除時は CLAUDE.md の prototype 言及(概要・絶対ルール8・ディレクトリ案内)と hooks の保護パターンも整理 |
 | BL-017 | 運用者としてサーバ上の Claude Code 運用(claude -p 定型ジョブ・SSH 障害調査)を整備したい。なぜなら AI が本番実態を直接観測できる必要があるから(docs/05 §5.3) | BL-016 の後。hooks 同梱・直接編集禁止ルールの確認手順を含む。**SSH ライブ読取(tc status/kpi/policy list)と tc snapshot の SharePoint/scp 配布**(docs/setup/remote-data-access.md)も整備。Phase 4 の週次レビューと接続 |
 
 ## アイデア / Icebox
@@ -54,6 +55,9 @@
 - llm_usage テーブルへの記録実装(LLMコストメーター、Phase 2 のニュースパイプラインと同時)
 
 ## 完了
+
+### Sprint 10(2026-06-13)
+- BL-038 ✅ prototype 開発ドキュメントの完全マージ(docs/07_シナリオ・人格基盤.md=49KB を現行仕様に更新して一次資料化〔1,079行〕、docs/testing/scenario-bridge-testcases.md=73件の詳細テストを現行仕様化、REQUIREMENTS に DL/DR/BR/PT/PE/LB/FI/SP/NF 節〔56件・旧→新対応表付き〕、FEATURES に FEAT-60〜97 詳細節、TESTCASES に索引行 TC-027/107/207/306。コードは移植済みのため変更なし。実 .env 由来のテスト分離バグ1件を修正し 211件緑)。prototype/ は無改変・削除判断は BL-039
 
 ### Sprint 9(2026-06-12)
 - BL-033 ✅ シナリオ入出力を単一 `workspace/` に統合(ADR-0009。local/・sharepoint/ 二重ツリー廃止、enabled は同期通信の有無のみ)+ `sharepoint.py sync` 新設(双方向・追加型・newer-wins・mtime 整合・削除非伝播。council も同期対象に追加 = Teams から議事録が見える)。シナリオ開始/終了時の自動 sync を CLAUDE.md の作法に明文化。議事録は git mv で履歴維持、DB minutes_path 更新済。tests/scripts 10件、211件緑

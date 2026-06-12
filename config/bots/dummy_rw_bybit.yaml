@@ -1,0 +1,9 @@
+# Bybit testnet 接続検証用 BOT(ADR-0008・docs/setup/bybit-testnet-setup.md)
+# 目的は実レイテンシ・実手数料・実約定の検証。収益は狙わない(dummy 戦略)
+bot_id: dummy_rw_bybit
+strategy: dummy_random_walk
+instrument_id: bybit_testnet.btc_usdt.spot
+enabled: false   # 検証時に true へ(testnet API キーの設定が前提)
+params:
+  order_qty: 0.001   # BTC(Bybit spot の最小ロット以上)
+  hold_bars: 3       # 3バー保有して決済する固定サイクル

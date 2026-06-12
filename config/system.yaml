@@ -25,7 +25,8 @@ paper:
   initial_balance_jpy: 1000000   # ペーパー口座の初期残高(仮想資金)
 
 feed:
-  # ダミーBOT用価格フィード: random_walk | public_rest(Phase 1 で実装予定)
+  # ペーパーBOT用価格フィード: random_walk(ローカルペーパー)| bybit(実データ — ADR-0008)
+  # ※ broker=bybit_testnet の BOT は feed.bybit を使う(build_runner が broker で分岐)
   type: random_walk
   random_walk:
     start_price: 10000000   # BTC/JPY 想定の開始価格
@@ -33,6 +34,15 @@ feed:
     vol_bps_per_bar: 20     # 1バーあたり標準偏差 0.2%
     bar_interval_sec: 60
     seed: null              # null = 起動毎にランダム / テストでは固定する
+  bybit:
+    environment: testnet    # testnet(執行と同一環境・既定)| mainnet(公開データのみ。testnet 価格が歪むとき)
+    bar_interval_sec: 60
+    poll_sec: 5.0           # 新バー確定待ちのポーリング間隔
+
+fx:
+  # JPY 換算レート(ADR-0008)。実勢より円安側の保守値 = 損失・エクスポージャーを
+  # 過大評価する安全側。四半期ごとに実勢と照らして見直すこと(2026-06 実勢 ~150 前後)
+  usdjpy_rate: 165
 
 notify:
   # 通知先 URL は .env から読む。ここに書かない。

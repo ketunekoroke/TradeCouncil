@@ -22,6 +22,10 @@ class PriceFeed(Protocol):
 
     def current_ticker(self) -> Ticker: ...
 
+    def data_age_sec(self) -> float:
+        """直近バーのデータ鮮度(秒)。P-04 の stale_data チェックに渡る(ADR-0008)。"""
+        ...
+
 
 class RandomWalkFeed:
     """幾何ランダムウォークの1分バー生成器(決定的: seed 固定で再現可能)。"""
@@ -64,6 +68,9 @@ class RandomWalkFeed:
             c=c,
             v=abs(self._rng.gauss(1.0, 0.3)),
         )
+
+    def data_age_sec(self) -> float:
+        return 0.0  # フィード直結(生成と同時に消費)のため常に新鮮
 
     def current_ticker(self) -> Ticker:
         half_spread = self._price * 0.0001  # 1bp の半スプレッド(ペーパー用固定)

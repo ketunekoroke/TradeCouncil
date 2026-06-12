@@ -97,6 +97,7 @@ class BotRunner:
         notifier: Notifier | None = None,
         kill_flag_path: Path | None = None,
         bar_sleep_sec: float | None = None,
+        fx_rate_jpy: float = 1.0,
     ) -> None:
         self._config = bot_config
         self._instrument = instrument
@@ -109,6 +110,8 @@ class BotRunner:
         self._notifier = notifier
         self._kill_flag_path = kill_flag_path
         self._bar_sleep_sec = bar_sleep_sec
+        # instrument 通貨 → JPY の換算レート(ADR-0008)。JPY 建ては 1.0
+        self._fx_rate_jpy = fx_rate_jpy
         self._prev_close: float | None = None
         self._week_peak_equity: float = 0.0
         self.bars_processed = 0
@@ -178,9 +181,15 @@ class BotRunner:
             asset_class=self._instrument.asset_class,
             side=intent.side,
             qty=intent.qty,
-            price=bar.c,
-            est_max_loss_jpy=intent.est_max_loss_jpy,
+            price=bar.c,  # instrument 通貨のまま(orders/fills と通貨を揃える)
+            # 戦略の見積りは instrument 通貨建て(バー価格基準)→ JPY 換算(ADR-0008)
+            est_max_loss_jpy=(
+                intent.est_max_loss_jpy * self._fx_rate_jpy
+                if intent.est_max_loss_jpy is not None
+                else None
+            ),
             reduces_position=intent.reduces_position,
+            fx_rate_jpy=self._fx_rate_jpy,
         )
         # 2. risk_guard(唯一の関門)→ 3. executor
         try:
@@ -198,10 +207,16 @@ class BotRunner:
     # ------------------------------------------------------------------
 
     async def _build_context(self, bar: Bar) -> MarketContext:
+        # JPY 換算(ADR-0008): 現金は instrument 通貨(quote)の残高のみ評価し、
+        # base 通貨(BTC 等)は建玉として exposure 側で評価する(二重計上しない)。
+        # その他の通貨は評価しない = equity を過小評価する安全側
+        rate = self._fx_rate_jpy
         balances = await self._adapter.fetch_balances()
-        cash = sum(b.balance for b in balances)
+        cash = sum(
+            b.balance for b in balances if b.currency == self._instrument.currency
+        ) * rate
         positions = await self._adapter.fetch_positions()
-        exposure = sum(abs(p.qty) * bar.c for p in positions)
+        exposure = sum(abs(p.qty) * bar.c for p in positions) * rate
         equity = cash + exposure
         self._week_peak_equity = max(self._week_peak_equity, equity)
 
@@ -214,10 +229,10 @@ class BotRunner:
         return MarketContext(
             equity_jpy=equity,
             total_exposure_jpy=exposure,
-            daily_pnl_jpy=self._daily_pnl(),
+            daily_pnl_jpy=self._daily_pnl() * rate,  # pnl_daily は instrument 通貨建て
             week_peak_equity_jpy=self._week_peak_equity,
             bot_open_positions=len(positions),
-            data_age_sec=0.0,  # フィード直結(RandomWalk)。RESTフィード時は実測値にする
+            data_age_sec=self._feed.data_age_sec(),  # REST フィードは実測(P-04)
             price_change_pct_1m=price_change_pct_1m,
             spread_bps=ticker.spread_bps,
         )
@@ -315,12 +330,29 @@ def build_runner(bot_id: str, bar_sleep: bool = True) -> BotRunner:
         raise RuntimeError(f"未登録の戦略: {bot_config.strategy}")
     strategy = strategy_cls(bot_id, bot_config.params)
 
-    if cfg.feed.type != "random_walk":
-        raise RuntimeError(f"Phase 0 では random_walk フィードのみ対応: {cfg.feed.type}")
-    feed = RandomWalkFeed(bot_config.instrument_id, cfg.feed.random_walk)
-    adapter = PaperCryptoAdapter(
-        ticker_provider=lambda _iid: feed.current_ticker(), config=cfg.paper
-    )
+    # broker ごとに feed/adapter を組む(ADR-0008: ローカルペーパー / Bybit testnet の2系統)
+    if instrument.broker == "paper":
+        if cfg.feed.type != "random_walk":
+            raise RuntimeError(
+                f"paper ブローカーは random_walk フィードのみ対応: {cfg.feed.type}"
+            )
+        feed: PriceFeed = RandomWalkFeed(bot_config.instrument_id, cfg.feed.random_walk)
+        adapter: BrokerAdapter = PaperCryptoAdapter(
+            ticker_provider=lambda _iid: feed.current_ticker(),
+            config=cfg.paper,
+            currency=instrument.currency,
+        )
+    elif instrument.broker == "bybit_testnet":
+        from core.exchange.bybit import BybitAdapter
+        from core.exchange.bybit_feed import BybitFeed
+
+        feed = BybitFeed(bot_config.instrument_id, instrument.symbol, cfg.feed.bybit)
+        adapter = BybitAdapter({bot_config.instrument_id: instrument.symbol})
+    else:
+        raise RuntimeError(f"未対応のブローカー: {instrument.broker}(fail-closed)")
+
+    # JPY 以外の instrument 通貨は保守的固定レートで換算(未対応通貨は即エラー)
+    fx_rate_jpy = cfg.fx.rate_to_jpy(instrument.currency)
     registry = default_registry()
     guard = RiskGuard(
         registry=registry,
@@ -339,7 +371,13 @@ def build_runner(bot_id: str, bar_sleep: bool = True) -> BotRunner:
         session_factory=session_factory,
         notifier=get_notifier(),
         kill_flag_path=cfg.kill_flag_path,
-        bar_sleep_sec=float(feed.bar_interval_sec) if bar_sleep else None,
+        # REST フィード(bybit)は next_bar が新バー確定まで自前で待つためスリープ不要
+        bar_sleep_sec=(
+            float(feed.bar_interval_sec)
+            if bar_sleep and instrument.broker == "paper"
+            else None
+        ),
+        fx_rate_jpy=fx_rate_jpy,
     )
 
 

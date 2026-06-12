@@ -1,0 +1,10 @@
+# 統一インストゥルメントモデル(FR-8.1)— Bybit testnet 接続検証用(ADR-0008)
+instrument_id: bybit_testnet.btc_usdt.spot
+asset_class: crypto_spot      # P-02 決裁済みクラス(>0)
+broker: bybit_testnet         # BybitAdapter(testnet 強制・模擬資金)
+symbol: "BTC/USDT"            # ccxt 統一シンボル形式
+currency: USDT                # JPY 換算は fx.usdjpy_rate(保守的固定 — system.yaml)
+tick_size: 0.01
+lot_size: 0.000001
+session_calendar: always      # 24/7(暗号資産)
+margin_rule: cash             # 現物

@@ -234,7 +234,7 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
   `sharepoint.config.json` の `enabled=true` で `python scripts/sharepoint.py sync` が
   全フォルダ(council 含む)を**双方向・追加型・新しい方優先**で同期する(削除は伝播しない。
   シナリオ開始/終了時に自動実行)。`pull|push` は選択的リカバリ用。
-  Azure アプリ登録は `prototype/documents/sharepoint-azure-app-setup.md` 参照
+  Azure アプリ登録は [docs/setup/sharepoint-azure-app-setup.md](docs/setup/sharepoint-azure-app-setup.md) 参照
 - Notion 可視化ミラー(**提案中・未決裁**): 議事録・ポリシー・KPI を Notion MCP で
   一方向ミラーする運用案。[docs/proposals/2026-06_notion-mirror-proposal.md](docs/proposals/2026-06_notion-mirror-proposal.md)
   参照(採否は P-11 決裁時の論点)

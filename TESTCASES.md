@@ -48,6 +48,8 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-021 | 構造化ログ: JSON 形式の妥当性・例外フィールド・plain 後方互換・冪等・level フィルタ・config 解決・不正 format 拒否 | `pytest tests/log` | REQ-O06 |
 | TC-022 | CLI 出力の cp932 耐性(BL-018): 非対応グリフ(✓✗)は「?」置換で落ちない・encoding 不変・reconfigure 非対応ストリーム許容・`status` が cp932 厳格ストリームで完走 | `pytest tests/scripts/test_cli_encoding.py` | FEAT-32 |
 | TC-023 | BOT スキャフォールド: 4ファイル生成・既存時は何も書かず拒否・生成 .py が Strategy サブクラスで権限分離維持・YAML が enabled:false・テスト雛形がレジストリ検査を含む・カード frontmatter・不正ID拒否・テンプレート欠落エラー | `pytest tests/bots` | REQ-N02 |
+| TC-024 | BybitAdapter(フェイク ccxt 注入): mainnet 拒否・APIキー欠落の即エラー・注文変換と orderLinkId・約定解決(応答内/fetch フォールバック/部分約定/実手数料)・取引所エラー→rejected 記録・残高/建玉導出・実スプレッド | `pytest tests/exchange/test_bybit_adapter.py` | REQ-M02 |
+| TC-025 | BybitFeed + JPY 換算: 確定バーのみ返す・同一バー非重複・data_age 実測・FxConfig fail-closed(未設定/未対応通貨/レート<1 拒否)・notional_jpy 換算・既定 1.0 後方互換・runner の equity/exposure/est_max_loss 換算 | `pytest tests/exchange/test_bybit_feed.py tests/risk/test_fx.py tests/runner` | REQ-M06, REQ-D01 |
 
 ## P1(手動・主要パス)
 
@@ -69,6 +71,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-203 | backend 混在の会議(1名を openai/gemini に切替)が完走し成果物に model 明記 | frontmatter 変更 → 会議 | REQ-SC03 |
 | TC-204 | **24時間無人稼働試験**(Phase 0 DoD): 翌日 status/kpi 確認・incident 0 | README §3 | FEAT-23 |
 | TC-205 | SharePoint 同期(enabled=true で pull/push/root) | `python scripts/sharepoint.py test` | FEAT-56 |
+| TC-206 | Bybit testnet 実接続検証: testnet キーで `dummy_rw_bybit` を数バー稼働 → orders/fills と Bybit 注文履歴の一致・実手数料・レイテンシ・再起動 reconcile | docs/setup/bybit-testnet-setup.md §6。**⚠️ 日本 IP は地域ブロック(403)— Bybit 提供地域のネットワークが必要** | FEAT-28, FEAT-29 |
 
 ## P3(エッジ・環境依存)
 

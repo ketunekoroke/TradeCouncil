@@ -38,6 +38,9 @@
 | FEAT-20 | 統一インストゥルメントモデル(YAML→DB同期) | 実装済 | [core/market/instrument.py](core/market/instrument.py) | REQ-M01 |
 | FEAT-21 | BrokerAdapter 共通IF + PaperCryptoAdapter(スリッページ/手数料モデル) | 実装済 | [core/exchange/](core/exchange/) | REQ-M02 |
 | FEAT-22 | RandomWalkFeed(シード固定で再現可能な価格フィード) | 実装済 | [core/exchange/feeds.py](core/exchange/feeds.py) | REQ-D01(暫定) |
+| FEAT-28 | BybitAdapter(testnet 強制・mainnet 発注経路なし・実約定/実手数料の解決・orderLinkId 二重防壁・base残高→建玉導出 — ADR-0008) | 実装済 | [core/exchange/bybit.py](core/exchange/bybit.py) | REQ-M02 |
+| FEAT-29 | BybitFeed(確定 kline のみ返す REST ポーリング・実スプレッド・data_age 実測 → P-04 鮮度チェックが実質動作。testnet/mainnet 切替) | 実装済 | [core/exchange/bybit_feed.py](core/exchange/bybit_feed.py) | REQ-D01 |
+| FEAT-58 | JPY 換算(OrderIntent.fx_rate_jpy + FxConfig 保守的固定レート。bot_runner で equity/exposure/pnl/est_max_loss を換算、price は instrument 通貨を維持) | 実装済 | [core/config.py](core/config.py), [core/runner/bot_runner.py](core/runner/bot_runner.py) | REQ-M06 |
 | FEAT-23 | bot_runner(バー駆動ループ・candles保存・heartbeat・異常時incident+通知) | 実装済 | [core/runner/bot_runner.py](core/runner/bot_runner.py) | REQ-E04, REQ-O02 |
 | FEAT-24 | ダミー固定サイクル戦略(24h試験用・売買両経路) | 実装済 | [bots/dummy_random_walk.py](bots/dummy_random_walk.py) | — |
 | FEAT-25 | bots/ の経路分離(core.exchange/execution import 禁止の性質テスト) | 実装済 | [tests/risk/test_limits.py](tests/risk/test_limits.py) | REQ-R02 |

@@ -33,7 +33,7 @@
 | BL-021 | 運用者として AWS インフラ(EC2/IAM/EBS/S3 + CloudWatch Agent + systemd)を構築したい。なぜなら paper 常駐の本番が必要だから | docs/setup/aws-architecture.md §2-3。SSH 鍵・git 一方向 pull デプロイ・`log_format: json`。BL-017(SSH 読取)と接続 |
 | BL-022 | 運用者として取引ダッシュボードを Teams タブの Power BI で見たい。なぜならトランザクションを可視化したいから | 主要テーブル→Parquet エクスポート(systemd timer、tc snapshot 入力)→ S3 → Glue/Athena → Power BI(Teams タブ)。aws-architecture.md §4 |
 | BL-023 | 運用者として CloudWatch アラートを Teams に流したい。なぜなら重大イベント(heartbeat 途絶等)を即時に知りたいから | CloudWatch Alarm → SNS → 既存 Teams 通知(notifier 連携)。aws-architecture.md §5 |
-| BL-032 | [要決裁] 決裁権者として実接続検証に使う取引所を再確認したい。なぜなら **Bybit API は日本 IP を地域ブロック(403)しており国内開発機から TC-206 を実施できない**(ADR-0008 既知の制約4。規制回避の迂回はしない)から | 選択肢: ①ユーザーの正規アクセス環境で TC-206 実施 ②国内取引所(bitFlyer/GMO 等・testnet なしのため少額実弾 or 読み取り検証)へ切替(ccxt 共通 IF のため移植費用小)③接続検証を Phase 1 サーバ構築後に再評価 |
+| BL-032 | 運用者として TC-206(Bybit testnet 実発注検証)を実施したい。なぜなら接続実装(BL-031)の最終確認であり、公開データ取得は実測確認済み(2026-06-12 タイ AIS 回線で testnet/mainnet とも 200)だが実発注はまだだから | 前提: testnet API キー作成(docs/setup/bybit-testnet-setup.md §1-2)。注意: 米国等の制限国 IP は 403(初回 403 は NordVPN 米国出口が原因と判明・docs 訂正済)。BL-021 の AWS リージョン選定時もブロック対象でないか事前確認 |
 | BL-029 | 開発者として最小バックテストエンジン(CSV/合成データで Strategy を回し PF・最大DD・取引数を算出)を導入したい。なぜなら P-06 ゲート基準(PF>1.2 / DD<15% / 100取引)の証拠を作る場が無く、戦略カードの「検証結果」を埋められないから | docs/02 §フェーズ1。vectorbt/backtesting.py 採用判断は ADR 起票してから。BL-028 の戦略カードと接続 |
 | BL-030 | 運用者として実戦略1本目(移動平均クロスのトレンドフォロー)を実装しペーパー稼働させたい。なぜなら docs/02 フェーズ1の中核であり、ダミー以外の戦略でノウハウ蓄積サイクルを実証したいから | `tc bot new` で雛形生成 → 戦略カード先行 → テスト先行(docs/06 のフロー実証)。検証は BL-029 のバックテスト or RandomWalk 試走 |
 | BL-017 | 運用者としてサーバ上の Claude Code 運用(claude -p 定型ジョブ・SSH 障害調査)を整備したい。なぜなら AI が本番実態を直接観測できる必要があるから(docs/05 §5.3) | BL-016 の後。hooks 同梱・直接編集禁止ルールの確認手順を含む。**SSH ライブ読取(tc status/kpi/policy list)と tc snapshot の SharePoint/scp 配布**(docs/setup/remote-data-access.md)も整備。Phase 4 の週次レビューと接続 |
@@ -52,7 +52,7 @@
 ## 完了
 
 ### Sprint 8(2026-06-12)
-- BL-031 ✅ Bybit testnet 接続実装(ADR-0008・docs/setup/bybit-testnet-setup.md。BybitAdapter=testnet 強制/mainnet 発注経路なし/実約定・実手数料解決、BybitFeed=確定 kline+data_age 実測で P-04 が実質動作、OrderIntent.fx_rate_jpy+FxConfig 保守的固定レートで JPY 換算。risk-auditor 審査合格・risk カバレッジ 93.86%、tests 39件追加で 201件緑)。**ただし Bybit API は日本 IP を地域ブロック(403)— 実接続検証(TC-206)は未実施 → BL-032 で取引所選定を再確認**
+- BL-031 ✅ Bybit testnet 接続実装(ADR-0008・docs/setup/bybit-testnet-setup.md。BybitAdapter=testnet 強制/mainnet 発注経路なし/実約定・実手数料解決、BybitFeed=確定 kline+data_age 実測で P-04 が実質動作、OrderIntent.fx_rate_jpy+FxConfig 保守的固定レートで JPY 換算。risk-auditor 審査合格・risk カバレッジ 93.86%、tests 39件追加で 201件緑)。公開データの実接続はタイ AIS 回線で確認済(初回 403 は NordVPN 米国出口が原因 — 米国は Bybit 制限国)。実発注検証(TC-206)は BL-032(要 testnet API キー)
 
 ### Sprint 7(2026-06-12)
 - BL-028 ✅ 戦略ナレッジ基盤(ADR-0007・docs/06_戦略開発ガイド・docs/strategies/ 戦略カタログ=1戦略1カード・学び append-only・数値は DB 真実源)+ `tc bot new` スキャフォールド(雛形4ファイル一括生成・既存拒否・enabled:false 既定・レジストリ登録はテスト駆動誘導。tests/bots 12件、162件緑、手動検証済み)。バックテストは BL-029、実戦略1本目は BL-030 に分離

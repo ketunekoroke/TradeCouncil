@@ -71,7 +71,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-203 | backend 混在の会議(1名を openai/gemini に切替)が完走し成果物に model 明記 | frontmatter 変更 → 会議 | REQ-SC03 |
 | TC-204 | **24時間無人稼働試験**(Phase 0 DoD): 翌日 status/kpi 確認・incident 0 | README §3 | FEAT-23 |
 | TC-205 | SharePoint 同期(enabled=true で pull/push/root) | `python scripts/sharepoint.py test` | FEAT-56 |
-| TC-206 | Bybit testnet 実接続検証: testnet キーで `dummy_rw_bybit` を数バー稼働 → orders/fills と Bybit 注文履歴の一致・実手数料・レイテンシ・再起動 reconcile | docs/setup/bybit-testnet-setup.md §6。**⚠️ 日本 IP は地域ブロック(403)— Bybit 提供地域のネットワークが必要** | FEAT-28, FEAT-29 |
+| TC-206 | Bybit testnet 実接続検証: testnet キーで `dummy_rw_bybit` を数バー稼働 → orders/fills と Bybit 注文履歴の一致・実手数料・レイテンシ・再起動 reconcile | docs/setup/bybit-testnet-setup.md §6。⚠️ 制限対象国(米国等)の IP は 403 — VPN 出口国に注意(公開データ取得は 2026-06-12 タイ回線で確認済) | FEAT-28, FEAT-29 |
 
 ## P3(エッジ・環境依存)
 

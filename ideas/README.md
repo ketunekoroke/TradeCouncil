@@ -58,4 +58,5 @@ idea → shaping → proposed → promoted
 
 | アイデア | status | 一言 | 入口 |
 |---|---|---|---|
+| governance-core | shaping | 「AIが提案し、人間が決裁する」運用コアの汎用解説(流用構想の共通参照資料) | [governance-core/README.md](governance-core/README.md) |
 | sales-council | shaping | TradeCouncil のガバナンス枠組みを営業支援へ流用(No Policy, No Send) | [sales-council/README.md](sales-council/README.md) |

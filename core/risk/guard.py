@@ -23,7 +23,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr
 from sqlalchemy.orm import Session, sessionmaker
 
 from core.governance.errors import PolicyKeyMissingError, PolicyNotActiveError
@@ -44,14 +44,17 @@ class OrderIntent(BaseModel):
     asset_class: str
     side: str  # buy / sell
     qty: float
-    price: float  # 想定価格(成行でも notional 計算に使う)
+    price: float  # 想定価格(instrument 通貨建て。成行でも notional 計算に使う)
     order_type: str = "market"
-    est_max_loss_jpy: float | None = None  # 想定最大損失。None なら notional 全額とみなす
+    est_max_loss_jpy: float | None = None  # 想定最大損失(JPY)。None なら notional 全額とみなす
     reduces_position: bool = False  # 決済方向(防御)の注文か
+    # instrument 通貨 → JPY の換算レート(ADR-0008)。JPY 建ては 1.0。
+    # 0 以下は不可(換算の無効化 = リスク過小評価を型レベルで拒否)
+    fx_rate_jpy: float = Field(default=1.0, gt=0)
 
     @property
     def notional_jpy(self) -> float:
-        return abs(self.qty * self.price)
+        return abs(self.qty * self.price * self.fx_rate_jpy)
 
 
 class MarketContext(BaseModel):

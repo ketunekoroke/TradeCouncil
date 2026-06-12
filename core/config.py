@@ -80,9 +80,45 @@ class RandomWalkConfig(BaseModel):
     seed: int | None = None
 
 
+class BybitFeedConfig(BaseModel):
+    """Bybit 公開市場データフィード(ADR-0008)。発注は常に testnet(アダプタ側で強制)。"""
+
+    # testnet = 執行と同一環境(既定)/ mainnet = 公開データのみ(testnet 価格が歪むとき)
+    environment: Literal["testnet", "mainnet"] = "testnet"
+    bar_interval_sec: int = 60
+    poll_sec: float = 5.0  # 新バー確定待ちのポーリング間隔
+
+
 class FeedConfig(BaseModel):
-    type: str = "random_walk"
+    type: Literal["random_walk", "bybit"] = "random_walk"
     random_walk: RandomWalkConfig = Field(default_factory=RandomWalkConfig)
+    bybit: BybitFeedConfig = Field(default_factory=BybitFeedConfig)
+
+
+class FxConfig(BaseModel):
+    """JPY 換算レート(技術設定 — ADR-0008)。
+
+    リスク上限(P-02/P-03)は JPY 建てのため、JPY 以外の instrument 通貨は
+    このレートで換算する。実勢より円安側の保守値(損失・エクスポージャーの
+    過大評価 = 安全側)を設定し、定期的に見直す。
+    """
+
+    # ge=1: 1 未満は明白な誤設定(notional 縮小 = リスク上限が甘くなる方向)として
+    # config 読込時点で拒否する(risk-auditor 審査の推奨。guard 側の gt=0 は最終防壁)
+    usdjpy_rate: float | None = Field(default=None, ge=1)
+
+    def rate_to_jpy(self, currency: str) -> float:
+        """instrument 通貨 → JPY の換算レート。未対応・未設定は拒否(fail-closed)。"""
+        if currency == "JPY":
+            return 1.0
+        if currency in ("USDT", "USD"):
+            if self.usdjpy_rate is None:
+                raise ValueError(
+                    "fx.usdjpy_rate が未設定(system.yaml)。"
+                    f"{currency} 建て instrument は換算レートなしでは扱えない(fail-closed)"
+                )
+            return self.usdjpy_rate
+        raise ValueError(f"未対応の通貨: {currency}(JPY/USDT/USD のみ — ADR-0008)")
 
 
 _CHANNEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -112,6 +148,7 @@ class SystemConfig(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     paper: PaperConfig = Field(default_factory=PaperConfig)
     feed: FeedConfig = Field(default_factory=FeedConfig)
+    fx: FxConfig = Field(default_factory=FxConfig)
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
 
     # --- パス解決(すべてルート相対) ---

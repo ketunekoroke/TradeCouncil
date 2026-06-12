@@ -39,6 +39,7 @@
 
 ## アイデア / Icebox
 
+- 営業支援への枠組み流用構想「SalesCouncil(仮称)」— ポリシーガバナンス・会議体・人格設計を営業ドメインへ翻訳(本体スコープ外。分冊は `ideas/sales-council/`)
 - Teams Bot コマンドからのキルスイッチ操作(FR-5.6 拡張。発注系ではないが要安全審査)
 - Discord 併用(critical のみ二重通知)の要否 — P-11 決裁の論点
 - Notion ↔ SharePoint の役割分担整理(ミラー二重化を避ける)— 会議論点

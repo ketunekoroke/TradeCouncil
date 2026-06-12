@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
-"""sharepoint.py — MAGI の入出力を SharePoint(Microsoft Graph)と同期する薄いブリッジ。
+"""sharepoint.py — workspace/ を SharePoint(Microsoft Graph)と同期する薄いブリッジ。
 
 ask_openai.py / ask_gemini.py と同じ「ファシリテーターが呼ぶ薄いブリッジ」の作法に倣う。
-クライアントシークレット(アプリ)認証でドキュメントライブラリと読み書きし、ローカルの
-ミラーディレクトリ `prototype/sharepoint/` と遠隔を `pull` / `push` で同期する。
+クライアントシークレット(アプリ)認証でドキュメントライブラリと読み書きする。
 
-入出力 root は `sharepoint.config.json` の "enabled" で切り替わる:
-  enabled: true  → root = prototype/sharepoint/(遠隔と同期するミラー)
-  enabled: false → root = prototype/local/(純ローカル。同期しない)
-両 root とも input / media-output / reviews / deliberations / brainstorms / persona-tests の構成は同一。
+入出力 root は常に単一の `workspace/`(ADR-0009。local/sharepoint の二重ツリーは廃止)。
+`sharepoint.config.json` の "enabled" は **SharePoint と同期通信するか**のみを制御する:
+  enabled: true  → sync/pull/push が遠隔と通信する
+  enabled: false → 純ローカル(sync 等は何もしない。作業場所は同じ workspace/)
+
+同期(sync)の意味論 — 双方向・追加型・newer-wins:
+  - 片側にしかないファイル → もう片方へコピー
+  - 両側にあるファイル → 更新時刻の新しい方が勝つ(差が SYNC_SKEW_SEC 以内はスキップ)
+  - **削除は伝播しない**(片側で消してももう片方に残る = 安全側。完全削除は両側で行う)
+  - push/pull 後は遠隔の lastModifiedDateTime をローカル mtime に反映(ピンポン同期の防止)
+  - 除外: .gitkeep / workspace 直下の README.md / *.tmp
 
 サブコマンド:
-  python scripts/sharepoint.py root                 アクティブ root の絶対パスを出力
+  python scripts/sharepoint.py root                 workspace の絶対パスを出力
   python scripts/sharepoint.py status               設定・enabled・root を表示(ネットワーク不使用)
   python scripts/sharepoint.py test                 認証 + site/drive 解決まで検証
-  python scripts/sharepoint.py pull [name ...]      遠隔 → ローカル(既定: input)
-  python scripts/sharepoint.py push [name ...]      ローカル → 遠隔(既定: reviews deliberations brainstorms persona-tests media-output)
-  python scripts/sharepoint.py info <localpath>     ローカルミラーパスに対応する SharePoint URL を出力
+  python scripts/sharepoint.py sync                 双方向同期(全フォルダ。シナリオ開始/終了時に実行)
+  python scripts/sharepoint.py pull [name ...]      遠隔 → ローカル(選択的リカバリ用。既定: input)
+  python scripts/sharepoint.py push [name ...]      ローカル → 遠隔(選択的リカバリ用)
+  python scripts/sharepoint.py info <localpath>     ローカルパスに対応する SharePoint URL を出力
 
-name は folders マップのキー(input / media-output / reviews / deliberations / brainstorms / persona-tests)。
+name は folders マップのキー(council / input / media-output / reviews / deliberations /
+brainstorms / persona-tests)。
 
-設定(prototype/sharepoint.config.json、非機密・追跡):
+設定(sharepoint.config.json、非機密・追跡):
   enabled / site_url / drive / root(遠隔基点フォルダ)/ folders(ローカル名 ↔ 遠隔名)
 シークレット(環境変数 → ルートの .env → .claude/settings.local.json の env、bridge_common と同じ解決):
   MAGI_SHAREPOINT_TENANT_ID / MAGI_SHAREPOINT_CLIENT_ID / MAGI_SHAREPOINT_CLIENT_SECRET
@@ -83,7 +91,8 @@ def _parse_bool(v):
 
 
 def active_root_name(cfg):
-    return "sharepoint" if cfg.get("enabled") else "local"
+    # 常に workspace(ADR-0009)。enabled は同期通信の有無のみを制御する
+    return "workspace"
 
 
 def active_root_path(cfg):
@@ -104,6 +113,49 @@ def remote_dir(cfg, name):
     sub = cfg["folders"][name]
     parts = [p for p in (cfg.get("root", ""), sub) if p]
     return "/".join(parts)
+
+
+# --------------------------------------------------------------------------- #
+# 同期計画(純関数 — tests/scripts/test_sharepoint_sync.py で検査)
+# --------------------------------------------------------------------------- #
+SYNC_SKEW_SEC = 2.0  # SharePoint のタイムスタンプは秒精度 → この差以内は同一とみなす
+
+
+def _should_sync(rel):
+    """同期対象か。rel は workspace 基準の相対パス(/'区切り)。"""
+    base = rel.rsplit("/", 1)[-1]
+    if base == ".gitkeep":
+        return False
+    if rel == "README.md":  # workspace 直下の README のみ除外(成果物の README は対象)
+        return False
+    if base.endswith(".tmp"):
+        return False
+    return True
+
+
+def plan_sync(local_index, remote_index, skew_sec=SYNC_SKEW_SEC):
+    """相対パス→更新時刻(epoch秒)の索引2つから同期アクションを決める。
+
+    返り値: [(rel, action)] — action は push / pull / skip。
+    追加型(削除は伝播しない): 片側にしか無い = コピー対象。
+    """
+    actions = []
+    for rel in sorted(set(local_index) | set(remote_index)):
+        if not _should_sync(rel):
+            continue
+        lt = local_index.get(rel)
+        rt = remote_index.get(rel)
+        if rt is None:
+            actions.append((rel, "push"))
+        elif lt is None:
+            actions.append((rel, "pull"))
+        elif abs(lt - rt) <= skew_sec:
+            actions.append((rel, "skip"))
+        elif lt > rt:
+            actions.append((rel, "push"))
+        else:
+            actions.append((rel, "pull"))
+    return actions
 
 
 # --------------------------------------------------------------------------- #
@@ -340,6 +392,135 @@ def push_folder(drive_id, local_path, remote_path, token):
 
 
 # --------------------------------------------------------------------------- #
+# 双方向同期(sync)
+# --------------------------------------------------------------------------- #
+def _parse_graph_ts(value):
+    """Graph の lastModifiedDateTime(ISO 8601 / Z)→ epoch 秒。不明は 0.0。"""
+    if not value:
+        return 0.0
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _local_index(base):
+    """base 配下を walk して {相対パス('/'区切り): mtime epoch秒}。未存在は {}。"""
+    index = {}
+    if not os.path.isdir(base):
+        return index
+    for dirpath, _dirs, files in os.walk(base):
+        for fn in files:
+            path = os.path.join(dirpath, fn)
+            rel = os.path.relpath(path, base).replace(os.sep, "/")
+            index[rel] = os.path.getmtime(path)
+    return index
+
+
+def _remote_index(drive_id, remote_path, token, prefix=""):
+    """遠隔 remote_path 配下を再帰列挙 → {相対パス: (mtime epoch秒, driveItem)}。"""
+    index = {}
+    for item in _list_children(drive_id, remote_path, token):
+        name = item["name"]
+        rel = f"{prefix}{name}"
+        child_remote = f"{remote_path}/{name}" if remote_path else name
+        if item.get("folder"):
+            index.update(
+                _remote_index(drive_id, child_remote, token, prefix=rel + "/")
+            )
+        else:
+            index[rel] = (_parse_graph_ts(item.get("lastModifiedDateTime")), item)
+    return index
+
+
+def _fetch_item(drive_id, remote_file, token):
+    return graph_json(
+        "GET", f"/drives/{drive_id}/root:/{urllib.parse.quote(remote_file)}", token
+    )
+
+
+def _align_local_mtime(local_path, remote_ts):
+    """ローカル mtime を遠隔の更新時刻に合わせる(次回 sync が skip になる)。"""
+    if remote_ts > 0:
+        os.utime(local_path, (remote_ts, remote_ts))
+
+
+def _sync_push_file(drive_id, local_path, remote_file, token):
+    parent = remote_file.rsplit("/", 1)[0] if "/" in remote_file else ""
+    _ensure_remote_path(drive_id, parent, token)
+    size = os.path.getsize(local_path)
+    if size < UPLOAD_CHUNK:
+        with open(local_path, "rb") as f:
+            _upload_small(drive_id, remote_file, f.read(), token)
+    else:
+        _upload_large(drive_id, remote_file, local_path, size, token)
+    # アップロード後の遠隔タイムスタンプをローカルへ反映(ピンポン防止)
+    item = _fetch_item(drive_id, remote_file, token)
+    _align_local_mtime(local_path, _parse_graph_ts(item.get("lastModifiedDateTime")))
+    sys.stderr.write(f"  push: {remote_file} ({size} bytes)\n")
+
+
+def _sync_pull_file(drive_id, item, remote_file, local_path, token):
+    dl = None
+    if item:
+        dl = item.get("@microsoft.graph.downloadUrl") or item.get("@content.downloadUrl")
+    if not dl:
+        dl = f"/drives/{drive_id}/root:/{urllib.parse.quote(remote_file)}:/content"
+    hdr = {} if dl.startswith("http") else _auth_headers(token)
+    url = dl if dl.startswith("http") else GRAPH + dl
+    try:
+        _, content = bc.http_raw("GET", url, hdr, None, provider=PROVIDER)
+    except bc.ProviderHTTPError as e:
+        raise SystemExit(bc.fmt_http_error(PROVIDER, e))
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    with open(local_path, "wb") as f:
+        f.write(content)
+    ts = _parse_graph_ts((item or {}).get("lastModifiedDateTime"))
+    _align_local_mtime(local_path, ts)
+    sys.stderr.write(f"  pull: {remote_file} ({len(content)} bytes)\n")
+
+
+def cmd_sync(cfg, _args):
+    """全フォルダの双方向同期(追加型・newer-wins)。シナリオ開始/終了時に実行する。"""
+    _require_enabled(cfg)
+    token = get_token(cfg)
+    site_id = resolve_site(cfg, token)
+    drive_id = resolve_drive(cfg, token, site_id)
+
+    local_index = {}
+    remote_times = {}
+    remote_items = {}
+    for name in cfg["folders"]:
+        base = local_dir(cfg, name)
+        for rel, mtime in _local_index(base).items():
+            local_index[f"{name}/{rel}"] = mtime
+        for rel, (mtime, item) in _remote_index(
+            drive_id, remote_dir(cfg, name), token
+        ).items():
+            remote_times[f"{name}/{rel}"] = mtime
+            remote_items[f"{name}/{rel}"] = item
+
+    pushed = pulled = skipped = 0
+    for rel, action in plan_sync(local_index, remote_times):
+        if action == "skip":
+            skipped += 1
+            continue
+        name, sub = rel.split("/", 1)
+        local_path = os.path.join(local_dir(cfg, name), sub.replace("/", os.sep))
+        rd = remote_dir(cfg, name)
+        remote_file = f"{rd}/{sub}" if rd else sub
+        if action == "push":
+            _sync_push_file(drive_id, local_path, remote_file, token)
+            pushed += 1
+        else:
+            _sync_pull_file(drive_id, remote_items.get(rel), remote_file, local_path, token)
+            pulled += 1
+    print(f"sync 完了: push {pushed} / pull {pulled} / skip {skipped}")
+
+
+# --------------------------------------------------------------------------- #
 # サブコマンド
 # --------------------------------------------------------------------------- #
 def cmd_root(cfg, _args):
@@ -356,14 +537,14 @@ def cmd_status(cfg, _args):
     for k, v in cfg["folders"].items():
         print(f"  {k:14s} ↔ {remote_dir(cfg, k) or '(直下)'}")
     if not cfg.get("enabled"):
-        print("\n注: enabled=false。pull/push は SharePoint と通信しません(local/ を使用)。")
+        print("\n注: enabled=false。sync/pull/push は SharePoint と通信しません(workspace/ は純ローカル)。")
 
 
 def _require_enabled(cfg):
     if not cfg.get("enabled"):
         sys.stderr.write(
-            "SharePoint 無効(enabled=false)。pull/push は何もしません。"
-            "local/ をそのまま使ってください。\n"
+            "SharePoint 無効(enabled=false)。sync/pull/push は何もしません。"
+            "workspace/ をそのまま使ってください。\n"
         )
         raise SystemExit(0)
 
@@ -439,6 +620,7 @@ COMMANDS = {
     "root": cmd_root,
     "status": cmd_status,
     "test": cmd_test,
+    "sync": cmd_sync,
     "pull": cmd_pull,
     "push": cmd_push,
     "info": cmd_info,
@@ -448,10 +630,11 @@ COMMANDS = {
 def main():
     p = argparse.ArgumentParser(description="MAGI の入出力を SharePoint と同期するブリッジ")
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("root", help="アクティブ root の絶対パスを出力")
+    sub.add_parser("root", help="workspace の絶対パスを出力")
     sub.add_parser("status", help="設定・enabled・root を表示(通信なし)")
     sub.add_parser("test", help="認証 + site/drive 解決を検証")
-    pp = sub.add_parser("pull", help="遠隔 → ローカル(既定: input)")
+    sub.add_parser("sync", help="双方向同期(全フォルダ・追加型・newer-wins。ADR-0009)")
+    pp = sub.add_parser("pull", help="遠隔 → ローカル(選択的リカバリ用。既定: input)")
     pp.add_argument("names", nargs="*", help="folders キー(既定: input)")
     pu = sub.add_parser("push", help="ローカル → 遠隔(既定: reviews deliberations brainstorms persona-tests media-output)")
     pu.add_argument("names", nargs="*", help="folders キー(既定: reviews deliberations brainstorms persona-tests media-output)")

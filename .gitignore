@@ -35,22 +35,16 @@ dist/
 *.sqlite3
 
 # ------------------------------------------------------------------------------
-# シナリオ入出力ルート(個人情報・容量の理由でデフォルト除外)
+# シナリオ入出力ルート workspace/(個人情報・容量の理由でデフォルト除外 — ADR-0009)
 # .gitkeep / README のみ追跡。個別共有は `git add -f <path>` で可能
 # ------------------------------------------------------------------------------
-/local/**
-/sharepoint/**
-!/local/**/
-!/sharepoint/**/
-!/local/**/.gitkeep
-!/sharepoint/**/.gitkeep
-!/local/README.md
-!/sharepoint/README.md
-!/local/**/README.md
-!/sharepoint/**/README.md
+/workspace/**
+!/workspace/**/
+!/workspace/**/.gitkeep
+!/workspace/README.md
+!/workspace/**/README.md
 # 会議議事録(.md)は監査テキストとして git 追跡する(ADR-0005)。メディアは除外のまま
-!/local/council/**/*.md
-!/sharepoint/council/**/*.md
+!/workspace/council/**/*.md
 
 # ------------------------------------------------------------------------------
 # OS生成ファイル(全ディレクトリ共通)

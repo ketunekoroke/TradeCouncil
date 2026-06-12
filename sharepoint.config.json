@@ -2,8 +2,9 @@
   "enabled": false,
   "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
   "drive": "Documents",
-  "root": "MAGI",
+  "root": "TradeCouncil",
   "folders": {
+    "council": "council",
     "input": "input",
     "media-output": "media-output",
     "reviews": "reviews",

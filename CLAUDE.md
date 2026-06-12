@@ -99,7 +99,8 @@ echo "<ラウンド入力>" | python scripts/ask_openai.py \
 - **ファイルを渡す**: 両ブリッジ共通の `--file <path>`(画像/PDF=ネイティブ、Office=テキスト抽出、
   txt/md/csv/json=本文注入)。多ラウンドで同じファイルは `upload` → `--file-id` でトークン節約
 - **コンテキスト継続**: openai/gemini 人格は呼び出しごとに記憶がリセットされる。各ラウンドで
-  必要な過去文脈を stdin に織り込むか、`--history '[{"role":"user"|"assistant","text":"…"}]'` で渡す
+  必要な過去文脈を stdin に織り込むか、`--history <JSONファイルパス>` で渡す
+  (中身は `[{"role":"user"|"assistant","text":"…"}]` の配列。**インライン JSON 不可** — 一時ファイルに書いて渡す)
   (その人格自身の過去発言は `assistant`、他からの入力は `user`)
 - **混在自由**(例: melchior=gpt-4o, balthasar=claude/opus)。どの人格がどの backend/model で
   動いたかを各成果物の冒頭に明記する(再現性)

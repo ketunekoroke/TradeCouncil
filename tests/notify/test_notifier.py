@@ -291,7 +291,9 @@ def test_get_notifier_builds_channel_urls_from_env(
 ) -> None:
     import core.config as config_mod
 
-    # 実 .env 由来の環境変数を遮断してから注入する
+    # load_config() 内の load_dotenv が実 .env から URL を再注入しないよう無効化し、
+    # そのうえで実環境の URL を遮断してテスト値だけを注入する(実 .env の内容に非依存)
+    monkeypatch.setattr(config_mod, "load_dotenv", lambda *a, **k: None)
     for key in list(__import__("os").environ):
         if key.startswith(("TEAMS_WORKFLOW_URL", "DISCORD_WEBHOOK_URL")):
             monkeypatch.delenv(key, raising=False)

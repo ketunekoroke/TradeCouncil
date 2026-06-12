@@ -40,7 +40,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-013 | 全スクリプト構文チェック | `python -m py_compile scripts/*.py scripts/hooks/*.py` | — |
 | TC-014 | hooks 単体: live/resume ブロック、generated/policies/prototype 保護、秘密検出 | stdin JSON を hooks に流して exit code 確認(FEATURES の FEAT-40〜41) | REQ-S01〜S03 |
 | TC-015 | pre-commit: 決裁レコードなしポリシー / .env / 秘密 を拒否 | ダミーをステージして `python scripts/hooks/pre_commit.py` | REQ-S01, S03 |
-| TC-016 | 人格 frontmatter の妥当性(name/backend/model が揃う) | 目視 or grep(8ファイル) | REQ-SC03 |
+| TC-016 | 人格 frontmatter の妥当性(name/backend/model が揃う) | 目視 or grep(8ファイル)。詳細手順: [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) の TC-008 | REQ-SC03, REQ-PE02 |
 | TC-017 | 通知: backend 切替・Adaptive Card 形式・severity 色・facts・切詰め・例外吸収・チャネルルーティング(明示>routing>default のフォールバック連鎖)・Workflow URL(sig付き)の秘密検出 | `pytest tests/notify` | REQ-O01, REQ-S01 |
 | TC-018 | シークレット解決順(環境変数 → .env → settings.local.json、placeholder/空は除外) | `pytest tests/scripts` | REQ-S01 |
 | TC-019 | TC_VAR_DIR: 絶対/相対の読み替え・サブ構造維持・未設定時の従来挙動・var 外パス非影響・動的解決 | `pytest tests/config` | REQ-O04 |
@@ -50,7 +50,8 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-023 | BOT スキャフォールド: 4ファイル生成・既存時は何も書かず拒否・生成 .py が Strategy サブクラスで権限分離維持・YAML が enabled:false・テスト雛形がレジストリ検査を含む・カード frontmatter・不正ID拒否・テンプレート欠落エラー | `pytest tests/bots` | REQ-N02 |
 | TC-024 | BybitAdapter(フェイク ccxt 注入): mainnet 拒否・APIキー欠落の即エラー・注文変換と orderLinkId・約定解決(応答内/fetch フォールバック/部分約定/実手数料)・取引所エラー→rejected 記録・残高/建玉導出・実スプレッド | `pytest tests/exchange/test_bybit_adapter.py` | REQ-M02 |
 | TC-025 | BybitFeed + JPY 換算: 確定バーのみ返す・同一バー非重複・data_age 実測・FxConfig fail-closed(未設定/未対応通貨/レート<1 拒否)・notional_jpy 換算・既定 1.0 後方互換・runner の equity/exposure/est_max_loss 換算 | `pytest tests/exchange/test_bybit_feed.py tests/risk/test_fx.py tests/runner` | REQ-M06, REQ-D01 |
-| TC-026 | workspace 同期計画(ADR-0009): 片側のみ→コピー・newer-wins・skew 内 skip・削除非伝播・除外(.gitkeep/直下README/*.tmp)・root が enabled によらず workspace/・folders に council | `pytest tests/scripts/test_sharepoint_sync.py` | REQ-SC05 |
+| TC-026 | workspace 同期計画(ADR-0009): 片側のみ→コピー・newer-wins・skew 内 skip・削除非伝播・除外(.gitkeep/直下README/*.tmp)・root が enabled によらず workspace/・folders に council | `pytest tests/scripts/test_sharepoint_sync.py` | REQ-SC05, REQ-SP03 |
+| TC-027 | **ブリッジ・シナリオ基盤の P0 一式**(構文・frontmatter 除去・キー3段解決・placeholder 除外・UTF-8 入出力・HTTP/生成リトライ・`--history` 整形・フォールバック分岐・Git 除外健全性・ルーティング整合 — 約20件) | [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) §P0(同ファイル内の TC 番号は独立名前空間) | REQ-LB, REQ-FI, REQ-NF, REQ-S06 |
 
 ## P1(手動・主要パス)
 
@@ -62,6 +63,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-104 | 合議シナリオ(Lite)が完走し `<root>/deliberations/` に出力される | 「議題: <軽いお題>」 | REQ-SC04 |
 | TC-105 | ペーパーBOT 1時間稼働: status の heartbeat OK・kpi の根拠連鎖 OK | `paper` + `watchdog` | FEAT-23 |
 | TC-106 | veto 動作: 根拠なき上限緩和案を会議に出し risk_manager が veto するか | 会議中に観察 | REQ-SC06 |
+| TC-107 | **ブリッジ・シナリオ基盤の P1 一式**(実テキスト往復・3人格の個性再現・画像/PDF/Office 抽出・docx 原本コピー編集/往復・ドキュメント整合 — 約16件) | [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) §P1 | REQ-LB, REQ-FI, REQ-DR |
 
 ## P2(API課金・長時間)
 
@@ -73,6 +75,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-204 | **24時間無人稼働試験**(Phase 0 DoD): 翌日 status/kpi 確認・incident 0 | README §3 | FEAT-23 |
 | TC-205 | SharePoint 同期(enabled=true で `sync` の双方向往復: ローカル新規→遠隔に現れる / 遠隔新規→ローカルに現れる / 再実行で全 skip / 片側削除が伝播しない) | `python scripts/sharepoint.py test` → `sync` ×2 | FEAT-56 |
 | TC-206 | Bybit testnet 実接続検証: testnet キーで `dummy_rw_bybit` を数バー稼働 → orders/fills と Bybit 注文履歴の一致・実手数料・レイテンシ・再起動 reconcile | docs/setup/bybit-testnet-setup.md §6。⚠️ 制限対象国(米国等)の IP は 403 — VPN 出口国に注意(公開データ取得は 2026-06-12 タイ回線で確認済) | FEAT-28, FEAT-29 |
+| TC-207 | **ブリッジ・シナリオ基盤の P2 一式**(各シナリオ一周〔合議/レビュー/ブレスト/人格テスト〕・backend 混在合議・upload/file-id 使い回し・SharePoint 実 sync 往復 — 約20件) | [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) §P2 | REQ-DL, REQ-DR, REQ-BR, REQ-PT, REQ-SP |
 
 ## P3(エッジ・環境依存)
 
@@ -83,3 +86,4 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-303 | DB ファイル破損/削除 → `db init` で再構築、reconcile が不整合を報告 | var/ 削除 → 再init | REQ-E03 |
 | TC-304 | Windows スリープ復帰後の watchdog 途絶検知 | スリープ→復帰 | REQ-O02 |
 | TC-305 | ポリシーYAML手編集 → pre-commit / hooks が検出 | わざと編集 | REQ-S03 |
+| TC-306 | **ブリッジ・シナリオ基盤の P3 一式**(複数ファイル同時添付・スキャン PDF の限界・不正 file_id・429 リトライ・`*_BASE_URL` 上書き・好奇心の屈折確認 — 約12件) | [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) §P3 | REQ-NF, REQ-FI, REQ-PE |

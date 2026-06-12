@@ -12,7 +12,7 @@
 
 ---
 
-## 今スプリント(Sprint 11: 未開始)
+## 今スプリント(Sprint 12: 未開始)
 
 (次の作業開始時にプロダクトバックログから移動する)
 
@@ -55,6 +55,9 @@
 - llm_usage テーブルへの記録実装(LLMコストメーター、Phase 2 のニュースパイプラインと同時)
 
 ## 完了
+
+### Sprint 11(2026-06-13)
+- BL-040 ✅ docs/ + ルート管理表の SharePoint 一方向ミラー(ADR-0010。`sharepoint.py mirror [--full]` = git main のコミット内容を `Docs/` へ差分転送・削除/リネーム反映・sha 状態ファイルで失敗時は次回追いつく。post-commit〔main 時のみ〕/pre-push フックで自動実行・fail-open。`tc hooks install` が3フック一括導入。tests/scripts 20件追加で231件緑、初回実機 34ファイル push・再実行 up to date 確認済み)
 
 ### Sprint 10(2026-06-13)
 - BL-038 ✅ prototype 開発ドキュメントの完全マージ(docs/07_シナリオ・人格基盤.md=49KB を現行仕様に更新して一次資料化〔1,079行〕、docs/testing/scenario-bridge-testcases.md=73件の詳細テストを現行仕様化、REQUIREMENTS に DL/DR/BR/PT/PE/LB/FI/SP/NF 節〔56件・旧→新対応表付き〕、FEATURES に FEAT-60〜97 詳細節、TESTCASES に索引行 TC-027/107/207/306。コードは移植済みのため変更なし。実 .env 由来のテスト分離バグ1件を修正し 211件緑)。prototype/ は無改変・削除判断は BL-039

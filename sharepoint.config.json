@@ -11,5 +11,19 @@
     "deliberations": "deliberations",
     "brainstorms": "brainstorms",
     "persona-tests": "persona-tests"
+  },
+  "git_mirror": {
+    "branch": "main",
+    "remote": "Docs",
+    "paths": ["docs"],
+    "files": [
+      "README.md",
+      "DOCS.md",
+      "REQUIREMENTS.md",
+      "FEATURES.md",
+      "TESTCASES.md",
+      "BACKLOG.md",
+      "DEVELOPMENT.md"
+    ]
   }
 }

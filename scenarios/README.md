@@ -17,13 +17,14 @@
 
 | シナリオ | ファイル | 何をするか | 出力先 |
 |---|---|---|---|
-| **合議**(deliberation) | [deliberation.md](deliberation.md) | 議題に対し3人格が議論し、確信度を加味して合意形成する | `../<root>/deliberations/` |
-| **資料チェック&リバイス**(document-review) | [document-review.md](document-review.md) | 持ち込まれた資料を3レンズでレビューし、指摘レポートと改訂版を出す | `../<root>/reviews/` |
-| **ブレスト**(brainstorm) | [brainstorm.md](brainstorm.md) | テーマに3レンズでアイデアを発散・評価し、マップと上位案を出す | `../<root>/brainstorms/` |
-| **人格テスト**(persona-test) | [persona-test.md](persona-test.md) | 同一依頼への出力差で人格の個性・調整を検査する(QA/回帰) | `../<root>/persona-tests/` |
-| **意思決定会議**(council) | [council.md](council.md) | ペルソナ5名が運用ポリシーを審議し、利用者の決裁で `config/policies/` を更新する | `../<root>/council/` + `config/policies/` |
+| **合議**(deliberation) | [deliberation.md](deliberation.md) | 議題に対し3人格が議論し、確信度を加味して合意形成する | `../workspace/deliberations/` |
+| **資料チェック&リバイス**(document-review) | [document-review.md](document-review.md) | 持ち込まれた資料を3レンズでレビューし、指摘レポートと改訂版を出す | `../workspace/reviews/` |
+| **ブレスト**(brainstorm) | [brainstorm.md](brainstorm.md) | テーマに3レンズでアイデアを発散・評価し、マップと上位案を出す | `../workspace/brainstorms/` |
+| **人格テスト**(persona-test) | [persona-test.md](persona-test.md) | 同一依頼への出力差で人格の個性・調整を検査する(QA/回帰) | `../workspace/persona-tests/` |
+| **意思決定会議**(council) | [council.md](council.md) | ペルソナ5名が運用ポリシーを審議し、利用者の決裁で `config/policies/` を更新する | `../workspace/council/` + `config/policies/` |
 
-> `<root>` は `local/`(既定)または `sharepoint/`(SharePoint 連携時)。→ `CLAUDE.md`「SharePoint 連携」
+> 入出力は単一の `workspace/` に集約(ADR-0009)。SharePoint 連携時はシナリオ開始/終了に
+> 自動 sync される。→ `CLAUDE.md`「入出力ディレクトリ」
 
 ## ファシリテーターによるシナリオ選択
 

@@ -12,7 +12,7 @@
 
 ---
 
-## 今スプリント(Sprint 9: 未開始)
+## 今スプリント(Sprint 10: 未開始)
 
 (次の作業開始時にプロダクトバックログから移動する)
 
@@ -50,6 +50,9 @@
 - llm_usage テーブルへの記録実装(LLMコストメーター、Phase 2 のニュースパイプラインと同時)
 
 ## 完了
+
+### Sprint 9(2026-06-12)
+- BL-033 ✅ シナリオ入出力を単一 `workspace/` に統合(ADR-0009。local/・sharepoint/ 二重ツリー廃止、enabled は同期通信の有無のみ)+ `sharepoint.py sync` 新設(双方向・追加型・newer-wins・mtime 整合・削除非伝播。council も同期対象に追加 = Teams から議事録が見える)。シナリオ開始/終了時の自動 sync を CLAUDE.md の作法に明文化。議事録は git mv で履歴維持、DB minutes_path 更新済。tests/scripts 10件、211件緑
 
 ### Sprint 8(2026-06-12)
 - BL-031 ✅ Bybit testnet 接続実装(ADR-0008・docs/setup/bybit-testnet-setup.md。BybitAdapter=testnet 強制/mainnet 発注経路なし/実約定・実手数料解決、BybitFeed=確定 kline+data_age 実測で P-04 が実質動作、OrderIntent.fx_rate_jpy+FxConfig 保守的固定レートで JPY 換算。risk-auditor 審査合格・risk カバレッジ 93.86%、tests 39件追加で 201件緑)。公開データの実接続はタイ AIS 回線で確認済(初回 403 は NordVPN 米国出口が原因 — 米国は Bybit 制限国)。実発注検証(TC-206)は BL-032(要 testnet API キー)

@@ -8,7 +8,7 @@
 > ファシリテーターの心得など**全シナリオ共通の作法は `CLAUDE.md`** にある。本ファイルは合議
 > 固有の「議論モード / ラウンド構成 / 合議の成果物」だけを定義する。
 >
-> **出力先**: `<root>/deliberations/`(`<root>` は `local/` または `sharepoint/`。→ `CLAUDE.md`「SharePoint 連携」)
+> **出力先**: `workspace/deliberations/`(→ `CLAUDE.md`「入出力ディレクトリ」。SharePoint 連携時は自動 sync — ADR-0009)
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### Round 0: 論題整理(ファシリテーター)
 - 議題を要約し、論点を3〜5個に分解
-- `<root>/input/` の添付メディアを確認、議題の前提として整理
+- `workspace/input/` の添付メディアを確認、議題の前提として整理
   (SharePoint 連携時は `sharepoint.py pull input` で取得。→ `CLAUDE.md`「SharePoint 連携」)
 - ユーザーに前提条件を確認(必要時)
 - **議論モードを提案**(Lite / Standard / Full)
@@ -145,24 +145,24 @@
 ユーザーが各形式を希望した場合に生成。事前に:
 `pip install python-docx openpyxl matplotlib pillow`
 
-成果物は `<root>/deliberations/` に出力する(`<root>` は `local/` または `sharepoint/`)。冒頭に
+成果物は `workspace/deliberations/` に出力する。冒頭に
 **どの人格がどの backend/model で動いたか**を明記する(再現性と公平性のため。→ `CLAUDE.md`
 「人格ごとのLLMバックエンド選択」)。**SharePoint 連携時**は生成後に
 `python scripts/sharepoint.py push deliberations` で遠隔へ反映し、ローカルパスと SharePoint URL
 の両方を提示する(→ `CLAUDE.md`「SharePoint 連携」)。
 
 ### Markdown(常に生成)
-`<root>/deliberations/YYYYMMDD-HHMM-<議題>.md` — 全ラウンドの議論ログ
+`workspace/deliberations/YYYYMMDD-HHMM-<議題>.md` — 全ラウンドの議論ログ
 
 ### Excel: 意思決定マトリクス
-`<root>/deliberations/YYYYMMDD-HHMM-<議題>.xlsx`
+`workspace/deliberations/YYYYMMDD-HHMM-<議題>.xlsx`
 - Summary / DecisionMatrix / Votes / **PositionChanges**(Round 5の更新履歴) / Log
 
 ### Word: 議論レポート
-`<root>/deliberations/YYYYMMDD-HHMM-<議題>.docx`
+`workspace/deliberations/YYYYMMDD-HHMM-<議題>.docx`
 - 表紙 / サマリ / 論点 / 各ラウンドの議論 / 立場更新の経緯 / 投票 / 統合回答 / 付録
 
-### ビジュアル: チャート画像(`<root>/media-output/`)
+### ビジュアル: チャート画像(`workspace/media-output/`)
 - レーダーチャート(3人格の評価傾向の重ね描き)
 - ヒートマップ(評価マトリクス)
 - 投票結果バーチャート

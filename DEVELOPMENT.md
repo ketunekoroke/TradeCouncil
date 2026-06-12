@@ -77,7 +77,7 @@ Remove-Item -Recurse -Force var-sandbox
 | `docs/04_データベース設計書.md` | DB物理スキーマ仕様 | `core/db/models.py` 変更時に**必ず**併せて更新 |
 
 **編集してはいけない**: `prototype/`(参照のみ)、`config/policies/*.yaml`・`config/generated/`
-(`tc policy record` / `sync` 経由のみ)、`var/`、`local/`・`sharepoint/` の生成物。
+(`tc policy record` / `sync` 経由のみ)、`var/`、`workspace/` の生成物。
 
 ## よくある変更パターン
 
@@ -107,7 +107,8 @@ Remove-Item -Recurse -Force var-sandbox
 ### パターン5: シナリオを追加する
 1. `scenarios/<name>.md` 新規作成(固有のラウンド・成果物だけ書く。共通作法は CLAUDE.md 参照)
 2. `scenarios/README.md` の一覧・兆候表、`CLAUDE.md` のシナリオ選択表・出力先表に追記
-3. 出力先を新設する場合は `local/`・`sharepoint/` にディレクトリ + `.gitkeep`
+3. 出力先を新設する場合は `workspace/` にディレクトリ + `.gitkeep`、
+   `sharepoint.config.json` の folders にも追加(同期対象になる — ADR-0009)
 4. 管理文書(下記)を同期
 
 ## ドキュメント同期ルール(忘れがち)

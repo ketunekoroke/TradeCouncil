@@ -79,5 +79,5 @@
 | FEAT-53 | MAGI 3人格 + 4シナリオ(合議/資料レビュー/ブレスト/人格テスト) | 仕様 | [scenarios/](scenarios/), [.claude/agents/](.claude/agents/) | REQ-SC04 |
 | FEAT-54 | LLMブリッジ(OpenAI/Gemini。リトライ・フォールバック・ファイル添付・履歴) | 実装済 | [scripts/ask_openai.py](scripts/ask_openai.py), [scripts/ask_gemini.py](scripts/ask_gemini.py), [scripts/bridge_common.py](scripts/bridge_common.py) | REQ-SC03 |
 | FEAT-55 | メディア変換(Office抽出・md→docx・docx置換) | 実装済 | [scripts/extract_office.py](scripts/extract_office.py) ほか | REQ-SC04 |
-| FEAT-56 | SharePoint 同期(local/ ⇔ sharepoint/ root 切替) | 実装済 | [scripts/sharepoint.py](scripts/sharepoint.py) | REQ-SC05 |
+| FEAT-56 | SharePoint 同期(単一 workspace/ root + `sync` 双方向・追加型・newer-wins・mtime 整合。削除非伝播。pull/push はリカバリ用 — ADR-0009) | 実装済 | [scripts/sharepoint.py](scripts/sharepoint.py) | REQ-SC05 |
 | FEAT-57 | 会議の開催記録(council_sessions へ tc council log) | 実装済 | [scripts/cli.py](scripts/cli.py) | REQ-G02 |

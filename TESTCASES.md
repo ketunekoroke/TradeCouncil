@@ -50,6 +50,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-023 | BOT スキャフォールド: 4ファイル生成・既存時は何も書かず拒否・生成 .py が Strategy サブクラスで権限分離維持・YAML が enabled:false・テスト雛形がレジストリ検査を含む・カード frontmatter・不正ID拒否・テンプレート欠落エラー | `pytest tests/bots` | REQ-N02 |
 | TC-024 | BybitAdapter(フェイク ccxt 注入): mainnet 拒否・APIキー欠落の即エラー・注文変換と orderLinkId・約定解決(応答内/fetch フォールバック/部分約定/実手数料)・取引所エラー→rejected 記録・残高/建玉導出・実スプレッド | `pytest tests/exchange/test_bybit_adapter.py` | REQ-M02 |
 | TC-025 | BybitFeed + JPY 換算: 確定バーのみ返す・同一バー非重複・data_age 実測・FxConfig fail-closed(未設定/未対応通貨/レート<1 拒否)・notional_jpy 換算・既定 1.0 後方互換・runner の equity/exposure/est_max_loss 換算 | `pytest tests/exchange/test_bybit_feed.py tests/risk/test_fx.py tests/runner` | REQ-M06, REQ-D01 |
+| TC-026 | workspace 同期計画(ADR-0009): 片側のみ→コピー・newer-wins・skew 内 skip・削除非伝播・除外(.gitkeep/直下README/*.tmp)・root が enabled によらず workspace/・folders に council | `pytest tests/scripts/test_sharepoint_sync.py` | REQ-SC05 |
 
 ## P1(手動・主要パス)
 
@@ -70,7 +71,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-202 | Gemini ブリッジ疎通(同上) | `scripts/ask_gemini.py` | REQ-SC03 |
 | TC-203 | backend 混在の会議(1名を openai/gemini に切替)が完走し成果物に model 明記 | frontmatter 変更 → 会議 | REQ-SC03 |
 | TC-204 | **24時間無人稼働試験**(Phase 0 DoD): 翌日 status/kpi 確認・incident 0 | README §3 | FEAT-23 |
-| TC-205 | SharePoint 同期(enabled=true で pull/push/root) | `python scripts/sharepoint.py test` | FEAT-56 |
+| TC-205 | SharePoint 同期(enabled=true で `sync` の双方向往復: ローカル新規→遠隔に現れる / 遠隔新規→ローカルに現れる / 再実行で全 skip / 片側削除が伝播しない) | `python scripts/sharepoint.py test` → `sync` ×2 | FEAT-56 |
 | TC-206 | Bybit testnet 実接続検証: testnet キーで `dummy_rw_bybit` を数バー稼働 → orders/fills と Bybit 注文履歴の一致・実手数料・レイテンシ・再起動 reconcile | docs/setup/bybit-testnet-setup.md §6。⚠️ 制限対象国(米国等)の IP は 403 — VPN 出口国に注意(公開データ取得は 2026-06-12 タイ回線で確認済) | FEAT-28, FEAT-29 |
 
 ## P3(エッジ・環境依存)

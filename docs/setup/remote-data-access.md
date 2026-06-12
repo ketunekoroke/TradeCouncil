@@ -22,11 +22,11 @@
 ## 2. 会議議事録(.md)→ git
 
 council 会議は開発機で開催する(Claude Code ファシリテーター)。議事録は
-`local/council/<日付>-<会議名>.md` に出力される。`.gitignore` の例外で
-`council/*.md` のみ追跡対象なので、会議後に**開発機で**コミットする:
+`workspace/council/<日付>-<会議名>.md` に出力される(ADR-0009)。`.gitignore` の例外で
+`council/**/*.md` のみ追跡対象なので、会議後に**開発機で**コミットする:
 
 ```powershell
-git add local/council/2026-06-22-council-0.md
+git add workspace/council/2026-06-22-council-0.md
 git commit -m "docs(council): 第0回意思決定会議 議事録"
 git push
 ```

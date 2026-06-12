@@ -10,7 +10,7 @@
 > ルール・ファシリテーターの心得など**全シナリオ共通の作法は `CLAUDE.md`** にある。本ファイル
 > はブレスト固有の「レンズ / 発散・収束モード / ラウンド構成 / 成果物」だけを定義する。
 >
-> **出力先**: `<root>/brainstorms/`(`<root>` は `local/` または `sharepoint/`。→ `CLAUDE.md`「SharePoint 連携」)
+> **出力先**: `workspace/brainstorms/`(→ `CLAUDE.md`「入出力ディレクトリ」。SharePoint 連携時は自動 sync — ADR-0009)
 
 ---
 
@@ -196,7 +196,7 @@ openai / gemini 人格は呼び出しごとに記憶がリセットされる(→
 
 ## 成果物
 
-成果物は `<root>/brainstorms/` に出力する(`<root>` は `local/` または `sharepoint/`)。冒頭に
+成果物は `workspace/brainstorms/` に出力する。冒頭に
 **どの人格がどの backend/model で動いたか**を明記する(再現性と公平性のため。→ `CLAUDE.md`
 「人格ごとのLLMバックエンド選択」)。Word/Excel 生成には `pip install python-docx openpyxl`、
 マップ画像には `matplotlib`(または graphviz)が必要。**SharePoint 連携時**は生成後に
@@ -204,7 +204,7 @@ openai / gemini 人格は呼び出しごとに記憶がリセットされる(→
 両方を提示する(→ `CLAUDE.md`「SharePoint 連携」)。
 
 ### アイデア集(Markdown、常に生成)
-`<root>/brainstorms/YYYYMMDD-HHMM-<テーマ>.md`
+`workspace/brainstorms/YYYYMMDD-HHMM-<テーマ>.md`
 - テーマ概要(目的 / 制約 / 成功基準 / 発散ルール)
 - 使用人格と backend/model、評価軸
 - **レンズ別の全アイデア一覧**(アイデアID・派生元付き)
@@ -232,17 +232,17 @@ mindmap
 各ノード末尾に発案レンズ記号 `(M)` / `(B)` / `(C)` を任意で添えると、どのレンズが何を広げたか追える。
 
 ### 任意: アイデア一覧 + 評価マトリクス(Excel)
-`<root>/brainstorms/YYYYMMDD-HHMM-<テーマ>.xlsx`
+`workspace/brainstorms/YYYYMMDD-HHMM-<テーマ>.xlsx`
 - シート構成: Ideas(ID / タイトル / 概要 / 発案レンズ / 派生元)/ EvaluationMatrix(アイデア × 軸 ×
   人格スコア、平均・分散)/ TopIdeas(上位案とブラッシュアップ)/ SplitIdeas(割れた尖り案)
 - 条件付き書式で高得点・高分散(割れ)を色分けすると見やすい
 
 ### 任意: 企画レポート(Word)
-`<root>/brainstorms/YYYYMMDD-HHMM-<テーマ>.docx`
+`workspace/brainstorms/YYYYMMDD-HHMM-<テーマ>.docx`
 - 表紙 / テーマと制約 / アイデアマップ / レンズ別アイデア / 評価結果 / 上位案 / 割れた尖り案 /
   ネクストアクション / 付録(全アイデア)
 
-### 任意: アイデアマップ画像(`<root>/media-output/`)
+### 任意: アイデアマップ画像(`workspace/media-output/`)
 Mermaid をそのまま見られない共有先向けに、クラスタ図を画像化(matplotlib / graphviz)。
 
 日本語フォント:
@@ -255,7 +255,7 @@ Mermaid をそのまま見られない共有先向けに、クラスタ図を画
 ファイルの基本的な扱い(全 backend で同じファイルを等しく渡す、Office はローカル抽出、多ラウンドは
 `upload`→`file-id` 使い回し等)は `CLAUDE.md`「メディア入力の扱い」を参照。ブレストでは:
 
-1. 参考資料(既存案・データ・競合資料・ラフ画像など)は `<root>/input/` に置くか、パスを直接指定する
+1. 参考資料(既存案・データ・競合資料・ラフ画像など)は `workspace/input/` に置くか、パスを直接指定する
    (SharePoint 連携時は `sharepoint.py pull input` で取得。→ `CLAUDE.md`「SharePoint 連携」)
 2. テーマに関わる資料なら、各人格の召喚プロンプトに**同じパス**を含める(対称性の確保)
 3. テーマと無関係なファイルは無視する

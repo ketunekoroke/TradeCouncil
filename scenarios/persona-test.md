@@ -10,7 +10,7 @@
 > ルール・ファシリテーターの心得など**全シナリオ共通の作法は `CLAUDE.md`** にある。本ファイル
 > は人格テスト固有の「プローブ / モード / ラウンド構成 / 判定 / 成果物」だけを定義する。
 >
-> **出力先**: `<root>/persona-tests/`(`<root>` は `local/` または `sharepoint/`。→ `CLAUDE.md`「SharePoint 連携」)
+> **出力先**: `workspace/persona-tests/`(→ `CLAUDE.md`「入出力ディレクトリ」。SharePoint 連携時は自動 sync — ADR-0009)
 
 ---
 
@@ -79,7 +79,7 @@ backend 変更)なら Deep。
 - **backend 方針**を確定(既定=各人格の設定 backend / 任意=同一 backend に揃える。→「比較の対象と公平性」)
 - **調整中なら「何を変えたか=期待」を宣言**(例:「CASPER の好奇心を強めた。新奇への食いつきが増えるはず」)。
   判定の基準になる
-- **(任意・Deep)ベースライン指定**: 過去の `<root>/persona-tests/` レポートを1つ選ぶ(回帰差分の基準)
+- **(任意・Deep)ベースライン指定**: 過去の `workspace/persona-tests/` レポートを1つ選ぶ(回帰差分の基準)
 - **プローブ選択**: 既定バッテリ(モードに応じ P1〜P4/P5)。独自プローブを追加してもよい(既定は変えない)
 - **成果物形式を確認**(比較レポート Markdown は既定。+ Excel)
 
@@ -138,13 +138,13 @@ Round 3 の基準。`DOCS.md`「3. 3つの人格」と各 `.claude/agents/*.md` 
 
 ## 成果物
 
-成果物は `<root>/persona-tests/` に出力する(`<root>` は `local/` または `sharepoint/`)。冒頭に
+成果物は `workspace/persona-tests/` に出力する。冒頭に
 **どの人格がどの backend/model で動いたか**を明記する(再現性。→ `CLAUDE.md`「人格ごとのLLMバックエンド
 選択」)。Excel 生成には `pip install openpyxl`。**SharePoint 連携時**は生成後に
 `python scripts/sharepoint.py push persona-tests` で反映し、ローカルパスと SharePoint URL の両方を提示する。
 
 ### 比較レポート(Markdown、常に生成)
-`<root>/persona-tests/YYYYMMDD-HHMM-<ラベル>.md`
+`workspace/persona-tests/YYYYMMDD-HHMM-<ラベル>.md`
 - テスト設計(対象人格 / モード / backend 方針 / 使用 backend・model / 調整の「期待」/ ベースライン)
 - **使用したプローブ(設問)** — 実行した各プローブ(P1〜P5 の該当分 + 追加分)の**設問文を、実際に
   投げた文面のまま全文掲載**する(プローブID・ねらいを添える)。何を尋ねた結果の差分かが自己完結し、
@@ -156,11 +156,11 @@ Round 3 の基準。`DOCS.md`「3. 3つの人格」と各 `.claude/agents/*.md` 
 - **推奨**(差別化・調整の次の一手)
 
 ### 任意: 差分マトリクス(Excel)
-`<root>/persona-tests/YYYYMMDD-HHMM-<ラベル>.xlsx`
+`workspace/persona-tests/YYYYMMDD-HHMM-<ラベル>.xlsx`
 - 行=プローブ、列=人格×観点(焦点/レンズ/好奇心/弱み/声)。判定セルを色分けすると見やすい
 
 ## このシナリオでのファイル/メディア入力
 
 基本はテキストのプローブで完結する。プローブに画像・資料を含めたい場合(例: 同じ画像を見せて反応差を
 見る)は、`CLAUDE.md`「メディア入力の扱い」に従い、**全人格に同一パスを等しく渡す**(対称性。openai/gemini
-は `--file`)。`<root>/input/` に置くか、パスを直接指定する(SharePoint 連携時は `sharepoint.py pull input`)。
+は `--file`)。`workspace/input/` に置くか、パスを直接指定する(SharePoint 連携時は `sharepoint.py pull input`)。

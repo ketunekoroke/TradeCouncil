@@ -144,6 +144,8 @@
 | FEAT-95 | `pull`/`push`(再帰・4MB 超はアップロードセッション分割)+ `info`(SharePoint URL) | 実装済 | `pull_folder` / `push_folder` / `cmd_info` | REQ-SP05 |
 | FEAT-96 | 設定解決(env(.env)→ sharepoint.config.json)+ 非機密設定ファイル(folders に council 含む) | 実装済 | `load_config`, [sharepoint.config.json](sharepoint.config.json) | REQ-SP02 |
 | FEAT-97 | Azure アプリ登録セットアップマニュアル(登録→シークレット→権限+同意→Sites.Selected→確認→トラブルシュート) | 実装済 | [docs/setup/sharepoint-azure-app-setup.md](docs/setup/sharepoint-azure-app-setup.md) | REQ-SP07, REQ-SP08 |
+| FEAT-98 | docs ミラー `mirror [--full]`(git main → SharePoint `Docs/` 一方向・差分ベース・削除反映・sha 状態ファイル・失敗時は状態を進めず次回追いつく — ADR-0010) | 実装済 | `cmd_mirror` / `plan_mirror`([scripts/sharepoint.py](scripts/sharepoint.py)) | REQ-SP09〜SP11 |
+| FEAT-99 | ミラーの git フック自動実行(post-commit=main 時のみ / pre-push。fail-open=warn のみ。`tc hooks install` が3フック一括導入) | 実装済 | [scripts/hooks/post_commit.py](scripts/hooks/post_commit.py) / [scripts/hooks/pre_push.py](scripts/hooks/pre_push.py) / `cmd_hooks` | REQ-SP12 |
 
 ---
 

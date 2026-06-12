@@ -125,6 +125,9 @@ SharePoint 連携時(enabled=true)の作法: **シナリオ開始時と成果物
 `python scripts/sharepoint.py sync` を実行する**(双方向・追加型・新しい方が勝つ。
 削除は伝播しない)。提示時はローカルパスと URL(`info <path>`)の両方を示す。
 シークレット設定は `DOCS.md`「SharePoint 連携」参照。
+なお `docs/` とルート管理表は **git main → SharePoint `Docs/` の一方向ミラー**
+(コミット/プッシュ時に git フックが自動実行・削除も反映 — ADR-0010)。手動は
+`python scripts/sharepoint.py mirror [--full]`。SharePoint 側の `Docs/` は編集しない。
 
 ## メディア入力(全シナリオ共通)
 

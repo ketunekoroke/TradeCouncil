@@ -240,6 +240,12 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
   全フォルダ(council 含む)を**双方向・追加型・新しい方優先**で同期する(削除は伝播しない。
   シナリオ開始/終了時に自動実行)。`pull|push` は選択的リカバリ用。
   Azure アプリ登録は [docs/setup/sharepoint-azure-app-setup.md](docs/setup/sharepoint-azure-app-setup.md) 参照
+- **docs ミラー(ADR-0010)**: `docs/` 一式とルート管理表(README / DOCS / REQUIREMENTS /
+  FEATURES / TESTCASES / BACKLOG / DEVELOPMENT)は SharePoint の `Docs/` へ
+  **git main から一方向ミラー**される(`python scripts/sharepoint.py mirror [--full]`)。
+  コミット(main 時)・プッシュで git フックが自動実行(失敗は warn のみ・次回追いつく)。
+  workspace 同期と違い**削除も反映する完全ミラー**で、`Docs/` は読み取り専用
+  (編集は git で。手動修復は `mirror --full`)
 - Notion 可視化ミラー(**提案中・未決裁**): 議事録・ポリシー・KPI を Notion MCP で
   一方向ミラーする運用案。[docs/proposals/2026-06_notion-mirror-proposal.md](docs/proposals/2026-06_notion-mirror-proposal.md)
   参照(採否は P-11 決裁時の論点)

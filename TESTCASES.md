@@ -52,6 +52,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-025 | BybitFeed + JPY 換算: 確定バーのみ返す・同一バー非重複・data_age 実測・FxConfig fail-closed(未設定/未対応通貨/レート<1 拒否)・notional_jpy 換算・既定 1.0 後方互換・runner の equity/exposure/est_max_loss 換算 | `pytest tests/exchange/test_bybit_feed.py tests/risk/test_fx.py tests/runner` | REQ-M06, REQ-D01 |
 | TC-026 | workspace 同期計画(ADR-0009): 片側のみ→コピー・newer-wins・skew 内 skip・削除非伝播・除外(.gitkeep/直下README/*.tmp)・root が enabled によらず workspace/・folders に council | `pytest tests/scripts/test_sharepoint_sync.py` | REQ-SC05, REQ-SP03 |
 | TC-027 | **ブリッジ・シナリオ基盤の P0 一式**(構文・frontmatter 除去・キー3段解決・placeholder 除外・UTF-8 入出力・HTTP/生成リトライ・`--history` 整形・フォールバック分岐・Git 除外健全性・ルーティング整合 — 約20件) | [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) §P0(同ファイル内の TC 番号は独立名前空間) | REQ-LB, REQ-FI, REQ-NF, REQ-S06 |
+| TC-028 | docs ミラー計画(ADR-0010): A/M/T→push・D→delete・R→delete+push・対象外パス除外・空 diff・full 時の prune(木に無い遠隔のみ削除)・状態ファイル round-trip / 破損 JSON は初回扱い・`hooks install` が3フック導入 | `pytest tests/scripts/test_sharepoint_mirror.py` | REQ-SP09〜SP12 |
 
 ## P1(手動・主要パス)
 
@@ -76,6 +77,7 @@ TradeCouncil の検証用テストケース集。**重要度ランク(P0〜P3)**
 | TC-205 | SharePoint 同期(enabled=true で `sync` の双方向往復: ローカル新規→遠隔に現れる / 遠隔新規→ローカルに現れる / 再実行で全 skip / 片側削除が伝播しない) | `python scripts/sharepoint.py test` → `sync` ×2 | FEAT-56 |
 | TC-206 | Bybit testnet 実接続検証: testnet キーで `dummy_rw_bybit` を数バー稼働 → orders/fills と Bybit 注文履歴の一致・実手数料・レイテンシ・再起動 reconcile | docs/setup/bybit-testnet-setup.md §6。⚠️ 制限対象国(米国等)の IP は 403 — VPN 出口国に注意(公開データ取得は 2026-06-12 タイ回線で確認済) | FEAT-28, FEAT-29 |
 | TC-207 | **ブリッジ・シナリオ基盤の P2 一式**(各シナリオ一周〔合議/レビュー/ブレスト/人格テスト〕・backend 混在合議・upload/file-id 使い回し・SharePoint 実 sync 往復 — 約20件) | [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md) §P2 | REQ-DL, REQ-DR, REQ-BR, REQ-PT, REQ-SP |
+| TC-208 | docs ミラー実機(ADR-0010): 初回 `mirror` で docs/+管理表が SharePoint `Docs/` に現れる → 直後再実行で「up to date」(通信なし)→ main へのコミットで post-commit フックが差分のみ push → 失敗時(オフライン)でもコミットは成功し次回実行で追いつく | `python scripts/sharepoint.py mirror` → コミットで観察 | REQ-SP09〜SP12 |
 
 ## P3(エッジ・環境依存)
 

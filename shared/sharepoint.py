@@ -100,8 +100,9 @@ def load_config():
     cfg.setdefault("drive", "Documents")
     cfg.setdefault("root", "")
     cfg.setdefault("folders", {})
-    # env(→ settings.local.json)で config を上書きできる(bridge_common と同じ解決順)。
-    # オンオフ・接続先を Git 追跡外の settings.local.json に置けるようにするため。
+    # 接続設定(全プロジェクト共通)は env(→ settings.local.json)で上書きできる。
+    # オンオフ・接続先を Git 追跡外に置けるようにするため。site/drive/enabled は同一テナント・
+    # 同一サイトなので共有 .env に置いてよい。
     env_enabled = bc.get_setting("MAGI_SHAREPOINT_ENABLED")
     if env_enabled is not None:
         cfg["enabled"] = _parse_bool(env_enabled)
@@ -109,7 +110,11 @@ def load_config():
         cfg["enabled"] = bool(cfg.get("enabled", False))
     cfg["site_url"] = bc.get_setting("MAGI_SHAREPOINT_SITE_URL") or cfg.get("site_url", "")
     cfg["drive"] = bc.get_setting("MAGI_SHAREPOINT_DRIVE") or cfg["drive"]
-    cfg["root"] = bc.get_setting("MAGI_SHAREPOINT_ROOT") or cfg.get("root", "")
+    # root(遠隔の基点フォルダ)は**プロジェクトごとのレイアウト**なので config を優先する
+    # (例: Magi/Workspace と TradeCouncil/Workspace を分離 — ADR-0011)。env は config 未設定時の
+    # フォールバックに留める。共有 .env に1つの MAGI_SHAREPOINT_ROOT を置いても各プロジェクトの
+    # config 値が勝つので、同期先が衝突しない。
+    cfg["root"] = cfg.get("root") or bc.get_setting("MAGI_SHAREPOINT_ROOT") or ""
     return cfg
 
 

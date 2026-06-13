@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from shared import sharepoint as sp
@@ -79,5 +80,50 @@ class TestRootResolution:
         try:
             sp.set_project(tmp_path)
             assert Path(sp.config_path()) == tmp_path / "sharepoint.config.json"
+        finally:
+            sp.set_project(original)
+
+
+class TestRemoteRootResolution:
+    """root(遠隔基点)は per-project config が共有 env より優先される(ADR-0011)。"""
+
+    def _write_cfg(self, project: Path, root: str) -> None:
+        project.mkdir(parents=True, exist_ok=True)
+        (project / "sharepoint.config.json").write_text(
+            json.dumps({"enabled": True, "root": root, "folders": {}}),
+            encoding="utf-8",
+        )
+
+    def test_config_root_wins_over_shared_env(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        # 共有 .env が単一の MAGI_SHAREPOINT_ROOT を持っていても、各プロジェクトの
+        # config root が勝ち、同期先が衝突しないことを確認する。
+        monkeypatch.setattr(sp.bc, "get_setting", lambda name: "Workspace"
+                            if name == "MAGI_SHAREPOINT_ROOT" else None)
+        original = sp.project_dir()
+        try:
+            magi = tmp_path / "Magi"
+            tc = tmp_path / "TradeCouncil"
+            self._write_cfg(magi, "Magi/Workspace")
+            self._write_cfg(tc, "TradeCouncil/Workspace")
+
+            sp.set_project(magi)
+            assert sp.load_config()["root"] == "Magi/Workspace"
+            sp.set_project(tc)
+            assert sp.load_config()["root"] == "TradeCouncil/Workspace"
+        finally:
+            sp.set_project(original)
+
+    def test_env_is_fallback_when_config_root_empty(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(sp.bc, "get_setting", lambda name: "Shared"
+                            if name == "MAGI_SHAREPOINT_ROOT" else None)
+        original = sp.project_dir()
+        try:
+            self._write_cfg(tmp_path, "")  # config が root 未設定 → env フォールバック
+            sp.set_project(tmp_path)
+            assert sp.load_config()["root"] == "Shared"
         finally:
             sp.set_project(original)

@@ -14,7 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hook_common import read_hook_input  # noqa: E402
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]  # TradeCouncil/
+REPO_ROOT = Path(__file__).resolve().parents[3]  # モノレポルート(共有 .venv の在処 — ADR-0011)
 TEST_TRIGGER = re.compile(r"/(core|bots|tests)/.*\.py$")
 
 
@@ -24,7 +25,7 @@ def main() -> None:
     if not TEST_TRIGGER.search(file_path):
         sys.exit(0)
 
-    python = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+    python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
     if not python.exists():
         sys.exit(0)  # venv 未構築環境ではスキップ
 

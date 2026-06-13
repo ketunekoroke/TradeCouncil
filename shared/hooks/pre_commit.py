@@ -52,7 +52,7 @@ def main() -> int:
 
         content = staged_content(path)
 
-        if norm.startswith((".env",)):
+        if norm.startswith(".env") or "/.env" in norm:
             errors.append(f"{path}: .env はコミット禁止")
             continue
 
@@ -60,14 +60,15 @@ def main() -> int:
         if label:
             errors.append(f"{path}: 秘密情報らしき内容({label})")
 
-        if norm.startswith("config/policies/") and norm.endswith((".yaml", ".yml")):
+        # config/policies・config/generated はどのプロジェクト配下でも検査する(per-project — ADR-0011)
+        if "config/policies/" in norm and norm.endswith((".yaml", ".yml")):
             if "decision:" not in content or "decision_id:" not in content:
                 errors.append(
                     f"{path}: 決裁レコード(decision ブロック)が無い。"
                     "ポリシー変更は tc policy record 経由のみ(運営規程 §2.3)"
                 )
 
-        if norm.startswith("config/generated/") and "AUTO-GENERATED" not in content:
+        if "config/generated/" in norm and "AUTO-GENERATED" not in content:
             errors.append(f"{path}: AUTO-GENERATED ヘッダが無い(手編集の疑い)")
 
     if errors:

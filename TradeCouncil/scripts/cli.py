@@ -105,40 +105,17 @@ def cmd_decide(args: argparse.Namespace) -> int:
     return run_decide_command(args)
 
 
-def install_hooks(root) -> list:
-    """git フック3種を .git/hooks へ書き込む(冪等・再実行で上書き)。
-
-    pre-commit  : 秘密・ポリシー検査(失敗でコミットを拒否)
-    post-commit : main 時のみ docs ミラー(ADR-0010。fail-open)
-    pre-push    : docs ミラー(ff マージ回収。fail-open)
-    """
-    from pathlib import Path
-
-    root = Path(root)
-    python = root / ".venv" / "Scripts" / "python.exe"
-    scripts = {
-        "pre-commit": root / "scripts" / "hooks" / "pre_commit.py",
-        "post-commit": root / "scripts" / "hooks" / "post_commit.py",
-        "pre-push": root / "scripts" / "hooks" / "pre_push.py",
-    }
-    written = []
-    for name, script in scripts.items():
-        hook_path = root / ".git" / "hooks" / name
-        hook_path.write_text(
-            "#!/bin/sh\n"
-            f'"{python}" "{script}"\n',
-            encoding="utf-8",
-        )
-        written.append(hook_path)
-    return written
-
-
 def cmd_hooks(args: argparse.Namespace) -> int:
     if args.hooks_command == "install":
+        import sys as _sys
         from pathlib import Path
 
-        root = Path(__file__).resolve().parents[1]
-        for hook_path in install_hooks(root):
+        # git フックはリポジトリ単位(shared/hooks が真実源 — ADR-0011)。
+        repo_root = Path(__file__).resolve().parents[2]
+        _sys.path.insert(0, str(repo_root))
+        from shared.hooks import install_hooks
+
+        for hook_path in install_hooks(repo_root):
             print(f"git フックを導入: {hook_path}")
         return 0
     print("usage: tc hooks install", file=sys.stderr)

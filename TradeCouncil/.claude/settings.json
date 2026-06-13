@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".venv\\Scripts\\python.exe scripts\\hooks\\block_live.py"
+            "command": "..\\.venv\\Scripts\\python.exe scripts\\hooks\\block_live.py"
           }
         ]
       },
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".venv\\Scripts\\python.exe scripts\\hooks\\protect_paths.py"
+            "command": "..\\.venv\\Scripts\\python.exe scripts\\hooks\\protect_paths.py"
           }
         ]
       }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".venv\\Scripts\\python.exe scripts\\hooks\\post_edit_test.py",
+            "command": "..\\.venv\\Scripts\\python.exe scripts\\hooks\\post_edit_test.py",
             "timeout": 360
           }
         ]

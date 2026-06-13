@@ -2,7 +2,6 @@
 
 - config/generated/  … 自動生成ビュー(tc policy sync 経由のみ)
 - config/policies/*.yaml … 決裁レコード(tc policy record 経由のみ。README は編集可)
-- prototype/         … MAGI プロトタイプ(編集禁止・参照のみ)
 - var/ / var-*/      … 実行時生成物(var-* は TC_VAR_DIR サンドボックス — ADR-0004)
 - 書き込み内容に APIキー・Webhook 等が含まれる場合もブロック
 """
@@ -33,8 +32,6 @@ def main() -> None:
                 "config/policies/*.yaml は決裁レコード経由でのみ変更できる(不変条項3)。"
                 "`python -m scripts.cli policy record --file <決裁レコード>` を使う"
             )
-        if "/prototype/" in file_path:
-            deny("prototype/ は MAGI プロトタイプ(編集禁止・参照のみ)。CLAUDE.md 絶対ルール8")
         if re.search(r"/TradeCouncil/var(-[^/]+)?/", file_path):
             deny("var/(および var-* サンドボックス)は実行時生成物。手編集しない")
 

@@ -22,6 +22,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _VAR_PREFIX = "var"
 
 
+def _shared_env_path() -> Path:
+    """シークレットを集約したルート共有 `.env` を上方向探索で見つける(モノレポ — ADR-0011)。
+
+    プロジェクト dir(PROJECT_ROOT)から上に向かって `.git` を持つリポジトリルートを探し、
+    その `.env` を返す。見つからなければ従来どおり PROJECT_ROOT/.env。
+    """
+    for parent in (PROJECT_ROOT, *PROJECT_ROOT.parents):
+        if (parent / ".git").exists():
+            return parent / ".env"
+    return PROJECT_ROOT / ".env"
+
+
 def _var_base() -> Path | None:
     """環境変数 TC_VAR_DIR を解決する。未設定・空なら None(従来挙動)。
 
@@ -194,7 +206,7 @@ class SystemConfig(BaseModel):
 
 def load_config(path: Path | None = None) -> SystemConfig:
     """system.yaml と .env を読み込む。path 指定はテスト用。"""
-    load_dotenv(PROJECT_ROOT / ".env")
+    load_dotenv(_shared_env_path())
     yaml_path = path or (PROJECT_ROOT / "config" / "system.yaml")
     if yaml_path.exists():
         raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}

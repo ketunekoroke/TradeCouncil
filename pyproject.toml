@@ -1,0 +1,14 @@
+# モノレポ・ルート(ADR-0011)— dev ツールと全体テスト集約のみ。
+# 各プロジェクトのパッケージ定義は */pyproject.toml(TradeCouncil の `tc` 等)を参照。
+
+[tool.pytest.ini_options]
+# 全体走行用。プロジェクト個別は各 dir から実行する(TradeCouncil は `tc test`)。
+testpaths = ["TradeCouncil/tests", "shared/tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

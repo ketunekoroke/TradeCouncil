@@ -48,11 +48,11 @@
 - すべての決定・注文が**監査ログ**として遡及可能
 - ルールが決まっていない領域は**取引しない**(No Policy, No Trade)
 
-### MAGI からの継承
+### MAGI 基盤の利用(モノレポ — ADR-0011)
 
-意思決定会議は MAGI 合議システム(prototype/)のオーケストレーション様式
-(ファシリテーター + 人格サブエージェント + シナリオプロトコル)で動く。
-MAGI の3人格と4シナリオ(合議・資料レビュー・ブレスト・人格テスト)もルートでそのまま使える。
+意思決定会議は MAGI 由来のオーケストレーション様式(ファシリテーター + 人格サブエージェント +
+シナリオプロトコル)で動く。汎用シナリオ基盤・MAGI 3人格・4シナリオ(合議・資料レビュー・
+ブレスト・人格テスト)は別プロジェクト `../Magi/`、LLMブリッジは共通層 `../shared/` にある。
 
 ## 2. 三層アーキテクチャと発注経路
 
@@ -111,7 +111,7 @@ P-01 自体の変更は委任設定に関わらず常に決裁事項。
 定義は `.claude/agents/<name>.md`(frontmatter: name / description / backend / model)。
 backend は claude / openai / gemini を人格ごとに選べる(→ §10)。
 人格哲学(価値観レンズ・意図的な弱み・好奇心の屈折)の詳細は
-[docs/07_シナリオ・人格基盤.md](docs/07_シナリオ・人格基盤.md)。
+[../Magi/docs/07_シナリオ・人格基盤.md](../Magi/docs/07_シナリオ・人格基盤.md)。
 
 ### TradeCouncil ペルソナ5名(意思決定会議用 — 偏りを設計)
 
@@ -123,17 +123,19 @@ backend は claude / openai / gemini を人格ごとに選べる(→ §10)。
 | quant_validator | データ・統計 | 「データで裏付くか」を全員に問う。数値の捏造禁止 |
 | risk_manager | 損失回避 | **veto 保有**。唯一「儲け」を評価基準に持たない |
 
-### MAGI 3人格(合議・レビュー・ブレスト用)
+### MAGI 3人格(Magi プロジェクト)
 
-MELCHIOR(論理・分析)/ BALTHASAR(共感・保護)/ CASPER(直感・欲求)。
-詳細は `prototype/DOCS.md` 3章(定義はルートにコピー済み、内容は同一)。
+MELCHIOR(論理・分析)/ BALTHASAR(共感・保護)/ CASPER(直感・欲求)。合議・レビュー・
+ブレスト・人格テストで使い、定義は `../Magi/.claude/agents/`。詳細は
+[../Magi/docs/07_シナリオ・人格基盤.md](../Magi/docs/07_シナリオ・人格基盤.md)。
 
 ## 5. シナリオ
 
-ルーター(`CLAUDE.md`)がユーザーの発言から選択する。一覧: `scenarios/README.md`。
-各シナリオの詳細仕様(ラウンド・モード・成果物の設計意図)は
-[docs/07_シナリオ・人格基盤.md](docs/07_シナリオ・人格基盤.md)、
-詳細テストは [docs/testing/scenario-bridge-testcases.md](docs/testing/scenario-bridge-testcases.md)。
+このプロジェクトのシナリオは council のみ(`scenarios/council.md`)。汎用シナリオ
+(合議・レビュー・ブレスト・人格テスト)は `../Magi/`。各シナリオの詳細仕様
+(ラウンド・モード・成果物の設計意図)は
+[../Magi/docs/07_シナリオ・人格基盤.md](../Magi/docs/07_シナリオ・人格基盤.md)、
+詳細テストは [../Magi/docs/testing/scenario-bridge-testcases.md](../Magi/docs/testing/scenario-bridge-testcases.md)。
 
 | シナリオ | 人格 | 何をするか |
 |---|---|---|
@@ -230,19 +232,19 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
 ## 10. LLMバックエンドと SharePoint
 
 - 人格ごとに backend(claude / openai / gemini)を frontmatter で指定。openai/gemini は
-  `scripts/ask_openai.py` / `ask_gemini.py` ブリッジ経由(リトライ・フォールバック・
-  ファイル添付・履歴渡し対応)。詳細は `CLAUDE.md`「人格ごとのLLMバックエンド選択」
-- API キー等のシークレットは**ルートの `.env` に集約**(`.env.example` をコピー。通知 URL・
-  OpenAI/Gemini キー・SharePoint 認証をすべてここに書ける)。解決順: 環境変数 → `.env` →
+  共通層 `../shared/ask_openai.py` / `ask_gemini.py` ブリッジ経由(リトライ・フォールバック・
+  ファイル添付・履歴渡し対応)。詳細は `../shared/README.md`
+- API キー等のシークレットは**ルート共有 `.env` に集約**(`.env.example` をコピー。通知 URL・
+  OpenAI/Gemini キー・SharePoint 認証をすべてここに書ける)。解決順: 環境変数 → ルート `.env` →
   `.claude/settings.local.json` の env(後方互換)
-- SharePoint 連携(任意): 入出力は常に単一の `workspace/`(ADR-0009)。
-  `sharepoint.config.json` の `enabled=true` で `python scripts/sharepoint.py sync` が
+- SharePoint 連携(任意): 入出力は単一の `workspace/`(ADR-0009)。
+  `sharepoint.config.json` の `enabled=true` で `python ../shared/sharepoint.py sync --project .` が
   全フォルダ(council 含む)を**双方向・追加型・新しい方優先**で同期する(削除は伝播しない。
   シナリオ開始/終了時に自動実行)。`pull|push` は選択的リカバリ用。
   Azure アプリ登録は [docs/setup/sharepoint-azure-app-setup.md](docs/setup/sharepoint-azure-app-setup.md) 参照
-- **docs ミラー(ADR-0010)**: `docs/` 一式とルート管理表(README / DOCS / REQUIREMENTS /
-  FEATURES / TESTCASES / BACKLOG / DEVELOPMENT)は SharePoint の `Docs/` へ
-  **git main から一方向ミラー**される(`python scripts/sharepoint.py mirror [--full]`)。
+- **docs ミラー(ADR-0010/0011)**: `docs/` 一式と管理表(README / DOCS / REQUIREMENTS /
+  FEATURES / TESTCASES / BACKLOG / DEVELOPMENT)は SharePoint の `TradeCouncil/Docs/` へ
+  **git main から一方向ミラー**される(`python ../shared/sharepoint.py mirror --project . [--full]`)。
   コミット(main 時)・プッシュで git フックが自動実行(失敗は warn のみ・次回追いつく)。
   workspace 同期と違い**削除も反映する完全ミラー**で、`Docs/` は読み取り専用
   (編集は git で。手動修復は `mirror --full`)

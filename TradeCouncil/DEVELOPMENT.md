@@ -13,7 +13,8 @@
 |---|---|---|
 | **会議・シナリオを実行する** | リポジトリ直下で `claude` | ルーター(CLAUDE.md)がモード判定し、ファシリテーターとして動く |
 | **開発作業をする** | 同じくリポジトリ直下 | 発言が開発系ならそのまま開発モード(「実装」「修正」等) |
-| MAGI プロトタイプを使う | `cd prototype && claude` | 旧プロトタイプ(独立・編集禁止) |
+| 汎用シナリオ・MAGI 人格を使う/編集 | `cd ../Magi && claude` | 別プロジェクト(モノレポ — ADR-0011) |
+| LLMブリッジ・SharePoint・office を編集 | `../shared/` を編集 | 共通層(全プロジェクトに影響) |
 
 ## 環境構築・テスト
 
@@ -76,8 +77,9 @@ Remove-Item -Recurse -Force var-sandbox
 | `docs/adr/` | 設計判断の記録 | 大きな判断のたび(一次資料 docs/01〜04 は直接改訂し、経緯を ADR に残す) |
 | `docs/04_データベース設計書.md` | DB物理スキーマ仕様 | `core/db/models.py` 変更時に**必ず**併せて更新 |
 
-**編集してはいけない**: `prototype/`(参照のみ)、`config/policies/*.yaml`・`config/generated/`
-(`tc policy record` / `sync` 経由のみ)、`var/`、`workspace/` の生成物。
+**編集してはいけない**: `config/policies/*.yaml`・`config/generated/`
+(`tc policy record` / `sync` 経由のみ)、`var/`、`workspace/` の生成物。共通層 `../shared/` の
+変更は全プロジェクトに影響する点に注意(売買固有の変更は TradeCouncil 内に閉じる)。
 
 ## よくある変更パターン
 

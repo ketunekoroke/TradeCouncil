@@ -1,0 +1,28 @@
+{
+  "enabled": false,
+  "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
+  "drive": "Documents",
+  "root": "Magi/Workspace",
+  "folders": {
+    "input": "input",
+    "media-output": "media-output",
+    "reviews": "reviews",
+    "deliberations": "deliberations",
+    "brainstorms": "brainstorms",
+    "persona-tests": "persona-tests"
+  },
+  "git_mirror": {
+    "branch": "main",
+    "remote": "Magi/Docs",
+    "paths": ["Magi/docs"],
+    "files": [
+      "Magi/README.md",
+      "Magi/DOCS.md",
+      "Magi/REQUIREMENTS.md",
+      "Magi/FEATURES.md",
+      "Magi/TESTCASES.md",
+      "Magi/BACKLOG.md",
+      "Magi/DEVELOPMENT.md"
+    ]
+  }
+}

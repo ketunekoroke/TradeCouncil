@@ -4,10 +4,11 @@
 各シナリオは独立した1ファイルで、ファシリテーター(`CLAUDE.md`)が
 ユーザーの最初の発言から適用するシナリオを選び、その内容に従って進行する。
 
-人格は2系統ある:
-- **MAGI 3人格**(MELCHIOR / BALTHASAR / CASPER)— 合議・資料レビュー・ブレスト・人格テスト用
-- **TradeCouncil ペルソナ5名**(macro_analyst / momentum_trader / contrarian_value /
-  quant_validator / risk_manager)— 意思決定会議(council)用
+人格は **MAGI 3人格**(MELCHIOR / BALTHASAR / CASPER)。合議・資料レビュー・ブレスト・人格テストで使う。
+
+> **意思決定会議(council)は別プロジェクト**。運用ポリシーを決裁して売買システムに反映する
+> シナリオで、TradeCouncil ペルソナ5名を使う → [../../TradeCouncil/scenarios/council.md](../../TradeCouncil/scenarios/council.md)
+> (モノレポ再編 — ADR-0011)。
 
 > 役割・人格・LLMバックエンド選択・メディア入力・召喚ルール・ファシリテーターの心得など
 > **全シナリオ共通の作法は `../CLAUDE.md`** にある。各シナリオファイルは「そのシナリオ固有の
@@ -21,7 +22,6 @@
 | **資料チェック&リバイス**(document-review) | [document-review.md](document-review.md) | 持ち込まれた資料を3レンズでレビューし、指摘レポートと改訂版を出す | `../workspace/reviews/` |
 | **ブレスト**(brainstorm) | [brainstorm.md](brainstorm.md) | テーマに3レンズでアイデアを発散・評価し、マップと上位案を出す | `../workspace/brainstorms/` |
 | **人格テスト**(persona-test) | [persona-test.md](persona-test.md) | 同一依頼への出力差で人格の個性・調整を検査する(QA/回帰) | `../workspace/persona-tests/` |
-| **意思決定会議**(council) | [council.md](council.md) | ペルソナ5名が運用ポリシーを審議し、利用者の決裁で `config/policies/` を更新する | `../workspace/council/` + `config/policies/` |
 
 > 入出力は単一の `workspace/` に集約(ADR-0009)。SharePoint 連携時はシナリオ開始/終了に
 > 自動 sync される。→ `CLAUDE.md`「入出力ディレクトリ」
@@ -38,7 +38,9 @@
 | 資料チェック&リバイス | 「レビュー」「添削」「校正」「チェックして」「リバイス」「この資料を見て」「直して」「改訂」 |
 | ブレスト | 「ブレスト」「ブレインストーミング」「アイデア出し」「ネタ出し」「発散」「企画」「アイデアを広げ」 |
 | 人格テスト | 「人格テスト」「人格チェック」「人格を比較」「同じ依頼で人格の違い」「(人格)調整の確認」「個性が出ているか」 |
-| 意思決定会議 | 「第0回」「会議を開催」「決裁」「審議」「ポリシーを決め」「月次会議」「臨時会議」 |
+
+> 「第0回」「会議を開催」「決裁」「審議」「ポリシーを決め」等は **TradeCouncil の council**
+> シナリオ(このプロジェクトではない)。
 
 ## 新しいシナリオを追加するには
 

@@ -1,6 +1,9 @@
 {
   "enabled": false,
+  "env_prefix": "TC",
   "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
+  "tenant_id": "",
+  "client_id": "",
   "drive": "Documents",
   "root": "TradeCouncil/Workspace",
   "folders": {

@@ -127,3 +127,63 @@ class TestRemoteRootResolution:
             assert sp.load_config()["root"] == "Shared"
         finally:
             sp.set_project(original)
+
+
+class TestPerProjectConnection:
+    """接続(site_url/client_id/secret)を per-project で変えられる(ADR-0011)。"""
+
+    def _write(self, project: Path, cfg: dict) -> None:
+        project.mkdir(parents=True, exist_ok=True)
+        (project / "sharepoint.config.json").write_text(json.dumps(cfg), encoding="utf-8")
+
+    def test_project_env_prefix_wins_over_shared(self, tmp_path: Path, monkeypatch) -> None:
+        env = {
+            "SHAREPOINT_SITE_URL": "https://shared",      # 共有(全プロジェクト既定)
+            "SHAREPOINT_MAGI_SITE_URL": "https://magi",   # プロジェクト別(prefix=MAGI)
+            "SHAREPOINT_MAGI_CLIENT_SECRET": "magi-secret",
+            "SHAREPOINT_CLIENT_SECRET": "shared-secret",
+        }
+        monkeypatch.setattr(sp.bc, "get_setting", lambda *names: next(
+            (env[n] for n in names if n in env), None))
+        original = sp.project_dir()
+        try:
+            self._write(tmp_path, {"enabled": True, "env_prefix": "MAGI", "folders": {}})
+            sp.set_project(tmp_path)
+            cfg = sp.load_config()
+            assert cfg["site_url"] == "https://magi"       # 共有より prefix が勝つ
+            assert sp.client_secret(cfg) == "magi-secret"  # 秘密もプロジェクト別が勝つ
+        finally:
+            sp.set_project(original)
+
+    def test_config_identifier_then_shared_env_fallback(self, tmp_path: Path, monkeypatch) -> None:
+        env = {"SHAREPOINT_CLIENT_SECRET": "shared-secret"}
+        monkeypatch.setattr(sp.bc, "get_setting", lambda *names: next(
+            (env[n] for n in names if n in env), None))
+        original = sp.project_dir()
+        try:
+            # client_id は config に直書き(非秘密)、secret は共有 env にフォールバック
+            self._write(tmp_path, {
+                "enabled": True, "env_prefix": "MAGI",
+                "client_id": "config-client", "folders": {},
+            })
+            sp.set_project(tmp_path)
+            cfg = sp.load_config()
+            assert cfg["client_id"] == "config-client"
+            assert sp.client_secret(cfg) == "shared-secret"  # prefix 未設定 → 共有へ
+        finally:
+            sp.set_project(original)
+
+    def test_placeholder_site_url_is_ignored(self, tmp_path: Path, monkeypatch) -> None:
+        env = {"SHAREPOINT_SITE_URL": "https://shared"}
+        monkeypatch.setattr(sp.bc, "get_setting", lambda *names: next(
+            (env[n] for n in names if n in env), None))
+        original = sp.project_dir()
+        try:
+            self._write(tmp_path, {
+                "enabled": True, "env_prefix": "MAGI",
+                "site_url": "https://<tenant>.sharepoint.com/sites/<site>", "folders": {},
+            })
+            sp.set_project(tmp_path)
+            assert sp.load_config()["site_url"] == "https://shared"  # placeholder → 共有 env
+        finally:
+            sp.set_project(original)

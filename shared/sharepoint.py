@@ -36,12 +36,15 @@ docs ミラー(ADR-0010)— workspace 同期とは別系統の一方向ミラー
 name は folders マップのキー(council / input / media-output / reviews / deliberations /
 brainstorms / persona-tests)。
 
-設定(sharepoint.config.json、非機密・追跡。**プロジェクトごとのレイアウト**はここで持つ):
-  enabled / site_url / drive / root(遠隔基点フォルダ。per-project)/ folders(ローカル名 ↔ 遠隔名)
-シークレット・接続(環境変数 → ルート共有 .env → .claude/settings.local.json、bridge_common と同じ解決):
-  SHAREPOINT_TENANT_ID / SHAREPOINT_CLIENT_ID / SHAREPOINT_CLIENT_SECRET
-  (任意)SHAREPOINT_SITE_URL / SHAREPOINT_DRIVE / SHAREPOINT_ENABLED で接続を上書き(全プロジェクト共通)。
-  root は per-project config を優先(ADR-0011)。旧 MAGI_SHAREPOINT_* は非推奨エイリアス(後方互換)。
+設定(sharepoint.config.json、非機密・追跡。**プロジェクトごとの接続・レイアウト**をここで持てる):
+  enabled / site_url / tenant_id / client_id / drive / root / folders / env_prefix
+  (client_secret は秘密なので config に置かない — env から読む)
+接続の解決(各フィールド共通。ADR-0011):
+  1) プロジェクト別 env  SHAREPOINT_<env_prefix>_<FIELD>(秘密・上書きを Git 外に置く)
+  2) config の値        （site_url/tenant_id/client_id を per-project に committed。placeholder は無視)
+  3) 共有 env           SHAREPOINT_<FIELD>(旧 MAGI_SHAREPOINT_* 後方互換。全プロジェクト共通の既定)
+シークレット(環境変数 → ルート共有 .env → .claude/settings.local.json、bridge_common と同じ解決):
+  SHAREPOINT_CLIENT_SECRET(共有)/ SHAREPOINT_<env_prefix>_CLIENT_SECRET(プロジェクト別アプリ登録用)
 Azure 側: アプリ登録 + アプリケーション許可 Sites.ReadWrite.All に管理者同意が必要。
 
 依存: 標準ライブラリのみ(HTTP は bridge_common 経由で urllib)。
@@ -101,22 +104,54 @@ def load_config():
     cfg.setdefault("drive", "Documents")
     cfg.setdefault("root", "")
     cfg.setdefault("folders", {})
-    # 接続設定(全プロジェクト共通)は env(→ settings.local.json)で上書きできる。
-    # オンオフ・接続先を Git 追跡外に置けるようにするため。site/drive/enabled は同一テナント・
-    # 同一サイトなので共有 .env に置いてよい。
-    env_enabled = bc.setting("SHAREPOINT_ENABLED")
+    cfg.setdefault("env_prefix", "")  # プロジェクト別 env 名のスコープ(例 MAGI / TC)
+    cfg.setdefault("tenant_id", "")
+    cfg.setdefault("client_id", "")
+    # 接続・レイアウトはプロジェクトごとに変えられる(ADR-0011)。各フィールドの解決順:
+    #   1) プロジェクト別 env  SHAREPOINT_<env_prefix>_<FIELD>(秘密や上書きを Git 外に置く用)
+    #   2) config の値        （識別子のみ。site_url/tenant_id/client_id を per-project に committed)
+    #   3) 共有 env           SHAREPOINT_<FIELD>(旧 MAGI_ 後方互換。全プロジェクト共通の既定)
+    cfg["site_url"] = _conn_value(cfg, "site_url")
+    cfg["tenant_id"] = _conn_value(cfg, "tenant_id")
+    cfg["client_id"] = _conn_value(cfg, "client_id")
+    # drive は env を先に見る(日本語テナントの「ドキュメント」を共有 env で指定する運用に配慮)。
+    cfg["drive"] = _conn_env(cfg, "drive") or bc.setting("SHAREPOINT_DRIVE") or cfg.get("drive") or "Documents"
+    env_enabled = _conn_env(cfg, "enabled") or bc.setting("SHAREPOINT_ENABLED")
     if env_enabled is not None:
         cfg["enabled"] = _parse_bool(env_enabled)
     else:
         cfg["enabled"] = bool(cfg.get("enabled", False))
-    cfg["site_url"] = bc.setting("SHAREPOINT_SITE_URL") or cfg.get("site_url", "")
-    cfg["drive"] = bc.setting("SHAREPOINT_DRIVE") or cfg["drive"]
     # root(遠隔の基点フォルダ)は**プロジェクトごとのレイアウト**なので config を優先する
-    # (例: Magi/Workspace と TradeCouncil/Workspace を分離 — ADR-0011)。env は config 未設定時の
-    # フォールバックに留める。共有 .env に1つの SHAREPOINT_ROOT を置いても各プロジェクトの
-    # config 値が勝つので、同期先が衝突しない。
-    cfg["root"] = cfg.get("root") or bc.setting("SHAREPOINT_ROOT") or ""
+    # (例: Magi/Workspace と TradeCouncil/Workspace を分離 — ADR-0011)。env はフォールバック。
+    cfg["root"] = cfg.get("root") or _conn_env(cfg, "root") or bc.setting("SHAREPOINT_ROOT") or ""
     return cfg
+
+
+def _conn_env(cfg, field):
+    """プロジェクト別 env(SHAREPOINT_<env_prefix>_<FIELD>)を1つ読む。env_prefix 未設定なら None。"""
+    prefix = (cfg.get("env_prefix") or "").strip().upper()
+    if not prefix:
+        return None
+    return bc.get_setting(f"SHAREPOINT_{prefix}_{field.upper()}")
+
+
+def _conn_value(cfg, field):
+    """接続識別子(site_url/tenant_id/client_id)を per-project で解決する。
+    プロジェクト別 env → config の値(placeholder は無視)→ 共有 env(旧 MAGI_ 後方互換)。"""
+    pe = _conn_env(cfg, field)
+    if pe:
+        return pe
+    v = (cfg.get(field) or "").strip()
+    if v and "REPLACE" not in v and "<" not in v:  # "<tenant>"/"<site>" 等の placeholder を除外
+        return v
+    return bc.setting(f"SHAREPOINT_{field.upper()}") or ""
+
+
+def client_secret(cfg):
+    """client_secret は Git に置かない。プロジェクト別 env(SHAREPOINT_<prefix>_CLIENT_SECRET)を
+    優先し、未設定なら共有 SHAREPOINT_CLIENT_SECRET(旧 MAGI_ 後方互換)にフォールバックする。"""
+    pe = _conn_env(cfg, "client_secret")
+    return pe or bc.setting("SHAREPOINT_CLIENT_SECRET")
 
 
 def _parse_bool(v):
@@ -196,15 +231,18 @@ def plan_sync(local_index, remote_index, skew_sec=SYNC_SKEW_SEC):
 # 認証 / Graph 呼び出し
 # --------------------------------------------------------------------------- #
 def get_token(cfg):
-    tenant = bc.setting("SHAREPOINT_TENANT_ID")
-    client_id = bc.setting("SHAREPOINT_CLIENT_ID")
-    secret = bc.setting("SHAREPOINT_CLIENT_SECRET")
+    # tenant_id / client_id は load_config が per-project 解決済み。secret は Git 外(env)から。
+    tenant = cfg.get("tenant_id")
+    client_id = cfg.get("client_id")
+    secret = client_secret(cfg)
+    prefix = (cfg.get("env_prefix") or "").strip().upper()
+    scope = f"SHAREPOINT_{prefix}_" if prefix else "SHAREPOINT_"
     missing = [
         n
         for n, v in (
-            ("SHAREPOINT_TENANT_ID", tenant),
-            ("SHAREPOINT_CLIENT_ID", client_id),
-            ("SHAREPOINT_CLIENT_SECRET", secret),
+            (f"{scope}TENANT_ID", tenant),
+            (f"{scope}CLIENT_ID", client_id),
+            (f"{scope}CLIENT_SECRET", secret),
         )
         if not v
     ]
@@ -212,7 +250,8 @@ def get_token(cfg):
         raise SystemExit(
             "error: SharePoint の認証情報が未設定です: "
             + ", ".join(missing)
-            + "\nルートの .env(推奨)か環境変数、または .claude/settings.local.json の env に設定してください。"
+            + "\n識別子は config(site_url/tenant_id/client_id)か env、client_secret は env に設定してください"
+            + "(プロジェクト別は env_prefix で SHAREPOINT_<prefix>_* を使う — ADR-0011)。"
         )
     url = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
     body = urllib.parse.urlencode(
@@ -793,9 +832,16 @@ def cmd_root(cfg, _args):
 
 
 def cmd_status(cfg, _args):
+    def _mask(v):
+        return "(未設定)" if not v else (v[:6] + "…" if len(v) > 8 else "設定済み")
+
     print(f"enabled    : {cfg.get('enabled')}")
+    print(f"env_prefix : {cfg.get('env_prefix') or '(なし=共有 SHAREPOINT_*)'}")
     print(f"active root: {active_root_path(cfg)}  ({active_root_name(cfg)}/)")
     print(f"site_url   : {cfg.get('site_url') or '(未設定)'}")
+    print(f"tenant_id  : {_mask(cfg.get('tenant_id'))}")
+    print(f"client_id  : {_mask(cfg.get('client_id'))}")
+    print(f"client_secret : {'(未設定)' if not client_secret(cfg) else '設定済み'}")
     print(f"drive      : {cfg.get('drive')}")
     print(f"remote root: {cfg.get('root') or '(ライブラリ直下)'}")
     print("folders    :")

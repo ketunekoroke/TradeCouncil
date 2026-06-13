@@ -244,45 +244,51 @@ SHAREPOINT_CLIENT_SECRET=<クライアント シークレットの値>
 ```
 
 > 環境変数はドメイン別プレフィックス(`SHAREPOINT_*`)。旧 `MAGI_SHAREPOINT_*` も後方互換で
-> 読まれるが非推奨(ADR-0011)。これらは**接続設定で全プロジェクト共通**(同一テナント・サイト)。
+> 読まれるが非推奨(ADR-0011)。
 
 > `.env` は `.gitignore` 済み。**シークレットは絶対にコミットしないこと**(pre-commit フックが
 > 検査するが、`git add -f` で迂回しないこと)。
->
-> **設定の優先順位**: `enabled` / `site_url` / `drive` / `root` は **env(.env)→
-> sharepoint.config.json** の順で解決される。オンオフ・テナント URL を**コミットせず**
-> ローカルで管理する場合は `.env` 側に書く(追跡ファイルの sharepoint.config.json は
-> 既定値・folders 構造の置き場として使う)。
+
+#### プロジェクトごとに接続を分ける(ADR-0011)
+
+各フィールド(site_url / tenant_id / client_id / drive / root / enabled)の解決順:
+
+1. **プロジェクト別 env** `SHAREPOINT_<env_prefix>_<FIELD>`(`env_prefix` は config に定義。Magi=`MAGI` / TradeCouncil=`TC`)
+2. **config の値**(識別子 site_url/tenant_id/client_id は per-project に committed してよい。非秘密)
+3. **共有 env** `SHAREPOINT_<FIELD>`(全プロジェクト共通の既定)
+
+- **同じサイト・同じアプリ登録でよい** → 共有 `SHAREPOINT_*` を1組だけ設定すれば両プロジェクトが使う(最も簡単)
+- **サイトやアプリ登録をプロジェクトごとに変える** → 識別子は各 `*/sharepoint.config.json` に直接書くか、
+  `SHAREPOINT_MAGI_*` / `SHAREPOINT_TC_*` を `.env` に設定。**client_secret は秘密なので必ず env**
+  (`SHAREPOINT_<prefix>_CLIENT_SECRET`、未設定なら共有 `SHAREPOINT_CLIENT_SECRET` にフォールバック)
+- 同期先フォルダ(`root`)は常に各 config(`Magi/Workspace` / `TradeCouncil/Workspace`)で持つ
+- 確認: `python ../shared/sharepoint.py status --project .`(secret はマスク表示)
 
 ### 4.2 接続先(非機密・追跡 — sharepoint.config.json)
 
-ルートの `sharepoint.config.json`(既定値の置き場。env が優先):
+各プロジェクトの `sharepoint.config.json`(例: TradeCouncil):
 
 ```json
 {
   "enabled": false,
+  "env_prefix": "TC",
   "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
+  "tenant_id": "",
+  "client_id": "",
   "drive": "Documents",
-  "root": "TradeCouncil",
-  "folders": {
-    "council": "council",
-    "input": "input",
-    "media-output": "media-output",
-    "reviews": "reviews",
-    "deliberations": "deliberations",
-    "brainstorms": "brainstorms",
-    "persona-tests": "persona-tests"
-  }
+  "root": "TradeCouncil/Workspace",
+  "folders": { "council": "council", "input": "input", "...": "..." }
 }
 ```
 
 | キー | 説明 |
 |---|---|
-| `enabled` | `true` で同期オン。**作業場所は常に `workspace/`**(ADR-0009 — root の切替はもう無い)。env `SHAREPOINT_ENABLED` が優先 |
-| `site_url` | 対象 SharePoint サイトの URL(ブラウザのアドレスバーの `…/sites/<site>` まで) |
-| `drive` | ドキュメントライブラリ名。**日本語テナントの既定ライブラリは表示名「ドキュメント」**のため、`Documents` だと毎回 warn を出して既定ライブラリへフォールバックする(動作はする)。warn を消すには `SHAREPOINT_DRIVE=ドキュメント` を設定 |
-| `root` | ライブラリ直下の基点フォルダ。`workspace/<key>` ↔ 遠隔 `<root>/<value>` |
-| `folders` | ローカルのサブフォルダ名 ↔ 遠隔フォルダ名の対応(council 含む全シナリオ出力) |
+| `enabled` | `true` で同期オン。env `SHAREPOINT_<prefix>_ENABLED` / `SHAREPOINT_ENABLED` が優先 |
+| `env_prefix` | プロジェクト別 env のスコープ名(`SHAREPOINT_<prefix>_*`)。Magi=`MAGI` / TradeCouncil=`TC` |
+| `site_url` / `tenant_id` / `client_id` | 接続識別子(非秘密)。**ここに書けば per-project**。空・placeholder なら env へフォールバック |
+| `drive` | ドキュメントライブラリ名。日本語テナント既定は表示名「ドキュメント」。warn を消すには `SHAREPOINT_DRIVE=ドキュメント` |
+| `root` | このプロジェクトの遠隔基点フォルダ(per-project。`workspace/<key>` ↔ `<root>/<value>`) |
+| `folders` | ローカルのサブフォルダ名 ↔ 遠隔フォルダ名の対応 |
 
 ---
 

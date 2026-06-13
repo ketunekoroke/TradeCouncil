@@ -15,7 +15,8 @@
   python scripts/md_to_docx.py 改訂版.md -o out.docx
 
 依存: python-docx。
-環境変数: MAGI_DOCX_BODY_FONT(既定 Yu Mincho)/ MAGI_DOCX_HEAD_FONT(既定 Yu Gothic)。
+環境変数: OFFICE_DOCX_BODY_FONT(既定 Yu Mincho)/ OFFICE_DOCX_HEAD_FONT(既定 Yu Gothic)。
+          (旧 MAGI_DOCX_* も後方互換で読む — ADR-0011)
 """
 import argparse
 import os
@@ -28,8 +29,8 @@ for _s in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-JP_BODY = os.environ.get("MAGI_DOCX_BODY_FONT", "Yu Mincho")
-JP_HEAD = os.environ.get("MAGI_DOCX_HEAD_FONT", "Yu Gothic")
+JP_BODY = os.environ.get("OFFICE_DOCX_BODY_FONT") or os.environ.get("MAGI_DOCX_BODY_FONT") or "Yu Mincho"
+JP_HEAD = os.environ.get("OFFICE_DOCX_HEAD_FONT") or os.environ.get("MAGI_DOCX_HEAD_FONT") or "Yu Gothic"
 
 
 def _set_font(run, name):

@@ -40,4 +40,4 @@ LLMブリッジ実装(FEAT-82〜99)は [../shared/FEATURES.md](../shared/FEATURE
 | FEAT-78 | 好奇心・興味の共通駆動(レンズ別に対象・強度が屈折、向きにくい対象が弱みと呼応) | 実装済 | [.claude/agents/](.claude/agents/), [docs/07](docs/07_シナリオ・人格基盤.md) | REQ-PE04 |
 | FEAT-79 | backend 振り分け(claude/openai/gemini)・混在・使用モデルのログ明記 | 仕様 | [CLAUDE.md](CLAUDE.md) | REQ-LB01〜03, REQ-SC08 |
 | FEAT-80 | ステートレス人格の継続(毎ラウンド文脈付与・`--history` 多ターン履歴) | 実装済 | [../shared/bridge_common.py](../shared/bridge_common.py) `load_history` | REQ-LB04 |
-| FEAT-81 | 拒否/空応答の自動再試行(`MAGI_GEN_MAX_RETRIES`)+言い換え再実行の作法 | 実装済 | `run_with_retry` / `extract_output_text` | REQ-LB05 |
+| FEAT-81 | 拒否/空応答の自動再試行(`BRIDGE_GEN_MAX_RETRIES`)+言い換え再実行の作法 | 実装済 | `run_with_retry` / `extract_output_text` | REQ-LB05 |

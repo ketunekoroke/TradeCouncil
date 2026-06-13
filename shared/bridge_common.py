@@ -97,6 +97,38 @@ def get_setting(*names):
     return None
 
 
+# 環境変数の名前空間規約(ADR-0011): 共有層の設定は**ドメイン別プレフィックス**で名付ける
+# (プロジェクト名を使わない)。SHAREPOINT_* / BRIDGE_* / OFFICE_*。プロバイダ標準キー
+# (OPENAI_API_KEY / GEMINI_API_KEY)はそのまま。旧 MAGI_* は非推奨エイリアス(後方互換)。
+_DEPRECATED_ENV_ALIASES = {
+    # SharePoint 接続(全プロジェクト共通)
+    "SHAREPOINT_TENANT_ID": "MAGI_SHAREPOINT_TENANT_ID",
+    "SHAREPOINT_CLIENT_ID": "MAGI_SHAREPOINT_CLIENT_ID",
+    "SHAREPOINT_CLIENT_SECRET": "MAGI_SHAREPOINT_CLIENT_SECRET",
+    "SHAREPOINT_SITE_URL": "MAGI_SHAREPOINT_SITE_URL",
+    "SHAREPOINT_DRIVE": "MAGI_SHAREPOINT_DRIVE",
+    "SHAREPOINT_ROOT": "MAGI_SHAREPOINT_ROOT",
+    "SHAREPOINT_ENABLED": "MAGI_SHAREPOINT_ENABLED",
+    # LLM ブリッジ実行設定
+    "BRIDGE_HTTP_MAX_RETRIES": "MAGI_HTTP_MAX_RETRIES",
+    "BRIDGE_HTTP_TIMEOUT": "MAGI_HTTP_TIMEOUT",
+    "BRIDGE_GEN_MAX_RETRIES": "MAGI_GEN_MAX_RETRIES",
+    "BRIDGE_OPENAI_FALLBACK_MODEL": "MAGI_OPENAI_FALLBACK_MODEL",
+    "BRIDGE_GEMINI_FALLBACK_MODEL": "MAGI_GEMINI_FALLBACK_MODEL",
+    # Office 変換
+    "OFFICE_XLSX_MAX_ROWS": "MAGI_XLSX_MAX_ROWS",
+    "OFFICE_DOCX_BODY_FONT": "MAGI_DOCX_BODY_FONT",
+    "OFFICE_DOCX_HEAD_FONT": "MAGI_DOCX_HEAD_FONT",
+}
+
+
+def setting(name):
+    """正準名(SHAREPOINT_/BRIDGE_/OFFICE_)で解決し、未設定なら非推奨の MAGI_* 別名で
+    後方互換する(ADR-0011)。新規コードは正準名のみを使うこと。"""
+    alias = _DEPRECATED_ENV_ALIASES.get(name)
+    return get_setting(name, alias) if alias else get_setting(name)
+
+
 # --------------------------------------------------------------------------- #
 # 人格定義 / 入力の読み込み
 # --------------------------------------------------------------------------- #
@@ -232,7 +264,7 @@ def extract_office(path, ext):
         elif ext == ".xlsx":
             import openpyxl
 
-            max_rows = _int_setting("MAGI_XLSX_MAX_ROWS", 2000)
+            max_rows = _int_setting("OFFICE_XLSX_MAX_ROWS", 2000)
             wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
             chunks, total, truncated = [], 0, False
             for ws in wb.worksheets:
@@ -249,7 +281,7 @@ def extract_office(path, ext):
                         total += 1
             if truncated:
                 chunks.append(
-                    f"…(出力は {max_rows} 行で打ち切り。全体は MAGI_XLSX_MAX_ROWS で調整可)"
+                    f"…(出力は {max_rows} 行で打ち切り。全体は OFFICE_XLSX_MAX_ROWS で調整可)"
                 )
             wb.close()  # read_only モードはファイルハンドルを保持する。Windows でのロック回避に明示クローズ
             body = "\n".join(chunks)
@@ -281,7 +313,7 @@ def extract_office(path, ext):
 # --------------------------------------------------------------------------- #
 # 429(レート制限)/ 500・502・503・504(一時的なサーバ障害)や接続タイムアウトは
 # 一過性のことが多い。即諦めず指数バックオフ + ジッタで数回リトライする(Retry-After 尊重)。
-# 既定は最大4回・各タイムアウト180秒。MAGI_HTTP_MAX_RETRIES / MAGI_HTTP_TIMEOUT で上書き可。
+# 既定は最大4回・各タイムアウト180秒。BRIDGE_HTTP_MAX_RETRIES / BRIDGE_HTTP_TIMEOUT で上書き可。
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 # フォールバックモデルを試す価値がある HTTP 状態(過負荷=RETRY_STATUSES、モデル不在=404)。
 # 401/403(認証)や一般的な 400 は別モデルでも直らないのでフォールバックしない。
@@ -317,7 +349,7 @@ def fmt_http_error(provider, err, model=None):
 
 
 def _int_setting(name, default):
-    val = get_setting(name)
+    val = setting(name)
     try:
         return max(0, int(val))
     except (TypeError, ValueError):
@@ -347,8 +379,8 @@ def _urlopen_retrying(req, provider):
     """urlopen を実行し、一過性エラーは指数バックオフでリトライして応答を返す。
     リトライ不能・回数超過のエラーは ProviderHTTPError を送出する(呼び出し側で
     フォールバック判断/整形。最終的に未捕捉なら各ブリッジの main が整形して SystemExit)。"""
-    max_retries = _int_setting("MAGI_HTTP_MAX_RETRIES", 4)
-    timeout = _int_setting("MAGI_HTTP_TIMEOUT", 180)
+    max_retries = _int_setting("BRIDGE_HTTP_MAX_RETRIES", 4)
+    timeout = _int_setting("BRIDGE_HTTP_TIMEOUT", 180)
     attempt = 0
     while True:
         try:
@@ -412,7 +444,7 @@ def run_with_fallback(run_fn, primary, fallback, provider):
 # 生成レベルのリトライ(空応答・拒否応答)
 # --------------------------------------------------------------------------- #
 # HTTP は 200 でも、モデルが空文字や拒否(セーフティ)を返すことがある。これは A2 の
-# HTTP リトライとは別レイヤなので、call 全体を MAGI_GEN_MAX_RETRIES 回まで再試行する。
+# HTTP リトライとは別レイヤなので、call 全体を BRIDGE_GEN_MAX_RETRIES 回まで再試行する。
 class EmptyOrRefusalResponse(Exception):
     """モデルが空応答または拒否応答を返したことを示す(再試行候補)。
     kind は 'empty' か 'refusal'、detail は原因の手掛かり。"""
@@ -425,9 +457,9 @@ class EmptyOrRefusalResponse(Exception):
 
 def run_with_retry(call_fn, provider):
     """call_fn()(API 呼び出し1回ぶん)を実行し、空/拒否応答なら同じ要求で再試行する。
-    既定は1回(計2回試行)。MAGI_GEN_MAX_RETRIES で調整可。最終的に失敗したら SystemExit。
+    既定は1回(計2回試行)。BRIDGE_GEN_MAX_RETRIES で調整可。最終的に失敗したら SystemExit。
     一過性の HTTP エラーは call_fn 内(http_json)の A2 リトライで別途吸収される。"""
-    max_retries = _int_setting("MAGI_GEN_MAX_RETRIES", 1)
+    max_retries = _int_setting("BRIDGE_GEN_MAX_RETRIES", 1)
     attempt = 0
     while True:
         try:

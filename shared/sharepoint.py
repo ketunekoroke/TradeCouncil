@@ -36,11 +36,12 @@ docs ミラー(ADR-0010)— workspace 同期とは別系統の一方向ミラー
 name は folders マップのキー(council / input / media-output / reviews / deliberations /
 brainstorms / persona-tests)。
 
-設定(sharepoint.config.json、非機密・追跡):
-  enabled / site_url / drive / root(遠隔基点フォルダ)/ folders(ローカル名 ↔ 遠隔名)
-シークレット(環境変数 → ルートの .env → .claude/settings.local.json の env、bridge_common と同じ解決):
-  MAGI_SHAREPOINT_TENANT_ID / MAGI_SHAREPOINT_CLIENT_ID / MAGI_SHAREPOINT_CLIENT_SECRET
-  (任意)MAGI_SHAREPOINT_SITE_URL / MAGI_SHAREPOINT_DRIVE で config を上書き
+設定(sharepoint.config.json、非機密・追跡。**プロジェクトごとのレイアウト**はここで持つ):
+  enabled / site_url / drive / root(遠隔基点フォルダ。per-project)/ folders(ローカル名 ↔ 遠隔名)
+シークレット・接続(環境変数 → ルート共有 .env → .claude/settings.local.json、bridge_common と同じ解決):
+  SHAREPOINT_TENANT_ID / SHAREPOINT_CLIENT_ID / SHAREPOINT_CLIENT_SECRET
+  (任意)SHAREPOINT_SITE_URL / SHAREPOINT_DRIVE / SHAREPOINT_ENABLED で接続を上書き(全プロジェクト共通)。
+  root は per-project config を優先(ADR-0011)。旧 MAGI_SHAREPOINT_* は非推奨エイリアス(後方互換)。
 Azure 側: アプリ登録 + アプリケーション許可 Sites.ReadWrite.All に管理者同意が必要。
 
 依存: 標準ライブラリのみ(HTTP は bridge_common 経由で urllib)。
@@ -103,18 +104,18 @@ def load_config():
     # 接続設定(全プロジェクト共通)は env(→ settings.local.json)で上書きできる。
     # オンオフ・接続先を Git 追跡外に置けるようにするため。site/drive/enabled は同一テナント・
     # 同一サイトなので共有 .env に置いてよい。
-    env_enabled = bc.get_setting("MAGI_SHAREPOINT_ENABLED")
+    env_enabled = bc.setting("SHAREPOINT_ENABLED")
     if env_enabled is not None:
         cfg["enabled"] = _parse_bool(env_enabled)
     else:
         cfg["enabled"] = bool(cfg.get("enabled", False))
-    cfg["site_url"] = bc.get_setting("MAGI_SHAREPOINT_SITE_URL") or cfg.get("site_url", "")
-    cfg["drive"] = bc.get_setting("MAGI_SHAREPOINT_DRIVE") or cfg["drive"]
+    cfg["site_url"] = bc.setting("SHAREPOINT_SITE_URL") or cfg.get("site_url", "")
+    cfg["drive"] = bc.setting("SHAREPOINT_DRIVE") or cfg["drive"]
     # root(遠隔の基点フォルダ)は**プロジェクトごとのレイアウト**なので config を優先する
     # (例: Magi/Workspace と TradeCouncil/Workspace を分離 — ADR-0011)。env は config 未設定時の
-    # フォールバックに留める。共有 .env に1つの MAGI_SHAREPOINT_ROOT を置いても各プロジェクトの
+    # フォールバックに留める。共有 .env に1つの SHAREPOINT_ROOT を置いても各プロジェクトの
     # config 値が勝つので、同期先が衝突しない。
-    cfg["root"] = cfg.get("root") or bc.get_setting("MAGI_SHAREPOINT_ROOT") or ""
+    cfg["root"] = cfg.get("root") or bc.setting("SHAREPOINT_ROOT") or ""
     return cfg
 
 
@@ -195,15 +196,15 @@ def plan_sync(local_index, remote_index, skew_sec=SYNC_SKEW_SEC):
 # 認証 / Graph 呼び出し
 # --------------------------------------------------------------------------- #
 def get_token(cfg):
-    tenant = bc.get_setting("MAGI_SHAREPOINT_TENANT_ID")
-    client_id = bc.get_setting("MAGI_SHAREPOINT_CLIENT_ID")
-    secret = bc.get_setting("MAGI_SHAREPOINT_CLIENT_SECRET")
+    tenant = bc.setting("SHAREPOINT_TENANT_ID")
+    client_id = bc.setting("SHAREPOINT_CLIENT_ID")
+    secret = bc.setting("SHAREPOINT_CLIENT_SECRET")
     missing = [
         n
         for n, v in (
-            ("MAGI_SHAREPOINT_TENANT_ID", tenant),
-            ("MAGI_SHAREPOINT_CLIENT_ID", client_id),
-            ("MAGI_SHAREPOINT_CLIENT_SECRET", secret),
+            ("SHAREPOINT_TENANT_ID", tenant),
+            ("SHAREPOINT_CLIENT_ID", client_id),
+            ("SHAREPOINT_CLIENT_SECRET", secret),
         )
         if not v
     ]
@@ -264,7 +265,7 @@ def resolve_site(cfg, token):
     if not site_url or "<tenant>" in site_url:
         raise SystemExit(
             "error: site_url が未設定です。sharepoint.config.json か "
-            "MAGI_SHAREPOINT_SITE_URL に SharePoint サイト URL を設定してください。"
+            "SHAREPOINT_SITE_URL に SharePoint サイト URL を設定してください。"
         )
     parsed = urllib.parse.urlparse(site_url)
     host = parsed.netloc

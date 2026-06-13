@@ -185,6 +185,8 @@ SharePoint 連携時(enabled=true)の作法: **シナリオ開始時と成果物
 - 取引所依存は `core/exchange/` のアダプタ内に閉じる。bots/ から直接取引所APIを呼ばない
 - 例外は握りつぶさない: 異常は incidents テーブルに記録 + notifier 通知
 - 設定値のハードコード禁止: 技術設定は `config/system.yaml`、運用ポリシーはレジストリへ
+- 環境変数はドメイン別プレフィックス(`SHAREPOINT_*`/`BRIDGE_*`/`OFFICE_*`・プロバイダ標準キー)。
+  プロジェクト名を env に入れない。プロジェクト別設定は config で分ける(規約は [../CLAUDE.md](../CLAUDE.md))
 - パスは pathlib + プロジェクトルート相対(`core/config.py` に集約)。POSIX 依存を書かない
 - Conventional Commits(例: `feat(core/risk): ...` / `docs(scenarios): ...`)
 

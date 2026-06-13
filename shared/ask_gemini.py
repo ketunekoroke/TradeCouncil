@@ -19,10 +19,11 @@ ask_openai.py と CLI・挙動を対称に揃えてある。
 環境変数(解決順: 環境変数 → ルートの .env → .claude/settings.local.json の env):
   GEMINI_API_KEY (または GOOGLE_API_KEY)  必須。
   GEMINI_BASE_URL  任意。既定 https://generativelanguage.googleapis.com/v1beta
-  MAGI_HTTP_MAX_RETRIES  任意。一過性エラー(429/5xx・接続タイムアウト)の最大再試行回数(既定 4)。
-  MAGI_HTTP_TIMEOUT      任意。各 HTTP リクエストのタイムアウト秒(既定 180)。
-  MAGI_GEN_MAX_RETRIES   任意。空応答・拒否応答時に同じ要求を再試行する回数(既定 1)。
-  MAGI_GEMINI_FALLBACK_MODEL  任意。primary が過負荷/不在(429/5xx/404)のとき切り替える代替モデル(--fallback-model でも可)。
+  BRIDGE_HTTP_MAX_RETRIES  任意。一過性エラー(429/5xx・接続タイムアウト)の最大再試行回数(既定 4)。
+  BRIDGE_HTTP_TIMEOUT      任意。各 HTTP リクエストのタイムアウト秒(既定 180)。
+  BRIDGE_GEN_MAX_RETRIES   任意。空応答・拒否応答時に同じ要求を再試行する回数(既定 1)。
+  BRIDGE_GEMINI_FALLBACK_MODEL  任意。primary が過負荷/不在(429/5xx/404)のとき切り替える代替モデル(--fallback-model でも可)。
+  (旧 MAGI_* も後方互換で読む — ADR-0011)
 
 使い方:
   # 1) 画像/PDF を一度アップロードして file 名(files/xxxx)を得る(多ラウンドで使い回す場合)
@@ -251,7 +252,7 @@ def cmd_run(argv):
     p.add_argument(
         "--fallback-model",
         help="primary が過負荷/不在(429/5xx/404)のとき切り替える代替モデル"
-        "(env MAGI_GEMINI_FALLBACK_MODEL でも可)",
+        "(env BRIDGE_GEMINI_FALLBACK_MODEL でも可)",
     )
     a = p.parse_args(argv)
 
@@ -259,7 +260,7 @@ def cmd_run(argv):
     user_text = bc.load_user_text(a.input)
     parts = build_parts(user_text, a.file, a.file_id)
     history = bc.load_history(a.history)
-    fallback = a.fallback_model or bc.get_setting("MAGI_GEMINI_FALLBACK_MODEL")
+    fallback = a.fallback_model or bc.setting("BRIDGE_GEMINI_FALLBACK_MODEL")
     out = bc.run_with_fallback(
         lambda model: bc.run_with_retry(
             lambda: call_generate(model, instructions, parts, a.temperature, history), PROVIDER

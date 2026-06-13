@@ -13,7 +13,7 @@
   python scripts/extract_office.py 表.xlsx
 
 依存: python-docx(docx)/ python-pptx(pptx)/ openpyxl(xlsx)。必要時のみ。
-環境変数: MAGI_XLSX_MAX_ROWS(xlsx の出力行ソフト上限。既定 2000)。
+環境変数: OFFICE_XLSX_MAX_ROWS(xlsx の出力行ソフト上限。既定 2000。旧 MAGI_XLSX_MAX_ROWS 後方互換)。
 """
 import argparse
 import os
@@ -97,7 +97,9 @@ def xlsx_to_md(path):
     except ImportError:
         _need("openpyxl", ".xlsx")
     try:
-        max_rows = int(os.environ.get("MAGI_XLSX_MAX_ROWS", "2000"))
+        # 正準名 OFFICE_*。旧 MAGI_* は後方互換(ADR-0011)。
+        raw = os.environ.get("OFFICE_XLSX_MAX_ROWS") or os.environ.get("MAGI_XLSX_MAX_ROWS") or "2000"
+        max_rows = int(raw)
     except (TypeError, ValueError):
         max_rows = 2000
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
@@ -107,7 +109,7 @@ def xlsx_to_md(path):
         printed_header = False
         for row in ws.iter_rows(values_only=True):
             if total >= max_rows:
-                lines.append(f"…(出力は {max_rows} 行で打ち切り。全体は MAGI_XLSX_MAX_ROWS で調整可)")
+                lines.append(f"…(出力は {max_rows} 行で打ち切り。全体は OFFICE_XLSX_MAX_ROWS で調整可)")
                 break
             cells = ["" if v is None else str(v) for v in row]
             if not any(cells):

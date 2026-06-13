@@ -75,3 +75,29 @@ def test_get_setting_multiple_names(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bc, "settings_env", lambda: {})
     assert bc.get_setting("TC_KEY_A", "TC_KEY_B") == "b-value"
     assert bc.get_setting("TC_KEY_A") is None
+
+
+def test_setting_prefers_canonical_over_deprecated_magi_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """正準名(SHAREPOINT_*/BRIDGE_*/OFFICE_*)が旧 MAGI_* より優先される(ADR-0011)。"""
+    for name in ("SHAREPOINT_DRIVE", "MAGI_SHAREPOINT_DRIVE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(bc, "settings_env", lambda: {})
+
+    # 旧名だけが設定されていれば後方互換で読む
+    monkeypatch.setattr(bc, "dotenv_env", lambda: {"MAGI_SHAREPOINT_DRIVE": "old"})
+    assert bc.setting("SHAREPOINT_DRIVE") == "old"
+
+    # 正準名と旧名の両方があれば正準名が勝つ
+    monkeypatch.setattr(
+        bc, "dotenv_env", lambda: {"SHAREPOINT_DRIVE": "new", "MAGI_SHAREPOINT_DRIVE": "old"}
+    )
+    assert bc.setting("SHAREPOINT_DRIVE") == "new"
+
+
+def test_setting_without_alias_is_plain_get(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(bc, "dotenv_env", lambda: {"OPENAI_API_KEY": "k"})
+    monkeypatch.setattr(bc, "settings_env", lambda: {})
+    assert bc.setting("OPENAI_API_KEY") == "k"

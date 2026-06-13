@@ -23,9 +23,12 @@ echo "<入力>" | python shared/ask_openai.py --system-file <人格md> --model g
 
 - `--system-file` のフロントマターは自動除去され本文だけがシステムプロンプトになる
 - キー解決順: 環境変数 → リポジトリルート共有 `.env` → `.claude/settings.local.json` の env(placeholder/空は未設定扱い)
-- リトライ: 一過性 HTTP(429/5xx)は指数バックオフ(`MAGI_HTTP_MAX_RETRIES` 既定4 / `MAGI_HTTP_TIMEOUT` 既定180秒)。
-  空/拒否応答は `MAGI_GEN_MAX_RETRIES`(既定1)再試行
-- フォールバック: `--fallback-model` / `MAGI_OPENAI_FALLBACK_MODEL` / `MAGI_GEMINI_FALLBACK_MODEL` で1回切替(発火したら成果物に実モデルを明記)
+- リトライ: 一過性 HTTP(429/5xx)は指数バックオフ(`BRIDGE_HTTP_MAX_RETRIES` 既定4 / `BRIDGE_HTTP_TIMEOUT` 既定180秒)。
+  空/拒否応答は `BRIDGE_GEN_MAX_RETRIES`(既定1)再試行
+- フォールバック: `--fallback-model` / `BRIDGE_OPENAI_FALLBACK_MODEL` / `BRIDGE_GEMINI_FALLBACK_MODEL` で1回切替(発火したら成果物に実モデルを明記)
+
+> 環境変数はドメイン別プレフィックス(`SHAREPOINT_*`/`BRIDGE_*`/`OFFICE_*`・プロバイダ標準キー)。
+> 旧 `MAGI_*` は `bridge_common.setting()` が後方互換で読む非推奨エイリアス(ADR-0011)。
 - ファイル: `--file <path>`(画像/PDF=ネイティブ、Office=テキスト抽出、txt/md/csv/json=本文注入)。多ラウンドは `upload` → `--file-id`
 - 履歴: `--history <JSONファイルパス>`(`[{"role":"user"|"assistant","text":"…"}]`。**インライン JSON 不可** — 一時ファイルに書く)
 

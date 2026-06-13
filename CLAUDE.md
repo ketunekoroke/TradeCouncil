@@ -31,6 +31,15 @@
   環境変数 → ルート `.env` → `.claude/settings.local.json` の env。コミット禁止
 - **git フックはリポジトリ単位**(`shared/hooks`)。`tc hooks install` で pre-commit(秘密/
   ポリシー検査)+ post-commit / pre-push(各プロジェクトの docs を SharePoint へミラー — ADR-0010)を導入
+- **環境変数の命名規約**(コーディング規約・ADR-0011): 環境変数は**共有層(shared)の設定にのみ**
+  使い、**ドメイン別プレフィックス**で名付ける(プロジェクト名は使わない)。
+  - `SHAREPOINT_*`(SharePoint 接続)/ `BRIDGE_*`(LLMブリッジ実行設定)/ `OFFICE_*`(Office 変換)/
+    プロバイダ標準キー `OPENAI_API_KEY`・`GEMINI_API_KEY`
+  - **プロジェクトごとに異なる設定は env で分けない** — 各プロジェクトの config
+    (例 `*/sharepoint.config.json` の `root`・`folders`)で表現する。env は全プロジェクト共通の
+    接続・実行設定だけに使う
+  - 旧 `MAGI_*` は非推奨エイリアス(`shared/bridge_common.py` の `setting()` が後方互換で読む)。
+    新規コードは正準名のみを使う
 - **Conventional Commits**。コミットは原則あるプロジェクトに閉じる(`refactor(TradeCouncil): ...`)
 - ルートの管理表([REQUIREMENTS](REQUIREMENTS.md) / [FEATURES](FEATURES.md) /
   [TESTCASES](TESTCASES.md) / [BACKLOG](BACKLOG.md))は**モノレポ全体にかかわる事項だけ**。

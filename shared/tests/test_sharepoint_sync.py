@@ -97,10 +97,10 @@ class TestRemoteRootResolution:
     def test_config_root_wins_over_shared_env(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        # 共有 .env が単一の MAGI_SHAREPOINT_ROOT を持っていても、各プロジェクトの
+        # 共有 .env が単一の SHAREPOINT_ROOT を持っていても、各プロジェクトの
         # config root が勝ち、同期先が衝突しないことを確認する。
-        monkeypatch.setattr(sp.bc, "get_setting", lambda name: "Workspace"
-                            if name == "MAGI_SHAREPOINT_ROOT" else None)
+        monkeypatch.setattr(sp.bc, "setting", lambda name: "Workspace"
+                            if name == "SHAREPOINT_ROOT" else None)
         original = sp.project_dir()
         try:
             magi = tmp_path / "Magi"
@@ -118,8 +118,8 @@ class TestRemoteRootResolution:
     def test_env_is_fallback_when_config_root_empty(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        monkeypatch.setattr(sp.bc, "get_setting", lambda name: "Shared"
-                            if name == "MAGI_SHAREPOINT_ROOT" else None)
+        monkeypatch.setattr(sp.bc, "setting", lambda name: "Shared"
+                            if name == "SHAREPOINT_ROOT" else None)
         original = sp.project_dir()
         try:
             self._write_cfg(tmp_path, "")  # config が root 未設定 → env フォールバック

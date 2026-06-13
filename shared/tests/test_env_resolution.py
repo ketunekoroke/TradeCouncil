@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import bridge_common as bc
+from shared import bridge_common as bc
 
 
 def test_parse_env_file(tmp_path: Path) -> None:

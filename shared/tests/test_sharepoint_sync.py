@@ -9,9 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts import sharepoint as sp
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from shared import sharepoint as sp
 
 
 class TestPlanSync:
@@ -64,15 +62,22 @@ class TestPlanSync:
 
 
 class TestRootResolution:
-    def test_root_is_workspace_regardless_of_enabled(self) -> None:
-        for enabled in (True, False):
-            cfg = {"enabled": enabled, "folders": {}}
-            assert sp.active_root_name(cfg) == "workspace"
-            assert Path(sp.active_root_path(cfg)) == PROJECT_ROOT / "workspace"
+    def test_root_is_project_workspace(self, tmp_path: Path) -> None:
+        """root は常に <project>/workspace(enabled の真偽によらず — ADR-0009/0011)。"""
+        original = sp.project_dir()
+        try:
+            sp.set_project(tmp_path)
+            for enabled in (True, False):
+                cfg = {"enabled": enabled, "folders": {}}
+                assert sp.active_root_name(cfg) == "workspace"
+                assert Path(sp.active_root_path(cfg)) == tmp_path / "workspace"
+        finally:
+            sp.set_project(original)
 
-
-class TestConfigDefaults:
-    def test_folders_include_council(self) -> None:
-        """council も同期対象(ADR-0009 §4)。"""
-        cfg = sp.load_config()
-        assert "council" in cfg["folders"]
+    def test_config_path_follows_project(self, tmp_path: Path) -> None:
+        original = sp.project_dir()
+        try:
+            sp.set_project(tmp_path)
+            assert Path(sp.config_path()) == tmp_path / "sharepoint.config.json"
+        finally:
+            sp.set_project(original)

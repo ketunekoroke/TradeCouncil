@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts import sharepoint as sp
-from scripts.cli import install_hooks
+from shared import sharepoint as sp
+from shared.hooks import install_hooks
 
 MCFG = sp.mirror_config(
     {

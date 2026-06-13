@@ -62,19 +62,38 @@ DEFAULT_PULL = ["input"]
 DEFAULT_PUSH = ["reviews", "deliberations", "brainstorms", "persona-tests", "media-output"]
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+# git 操作・差分の基点はリポジトリルート(shared/ の親 — ADR-0011)。
 _PROTO = os.path.normpath(os.path.join(_HERE, os.pardir))
-_CONFIG_PATH = os.path.join(_PROTO, "sharepoint.config.json")
+
+# config / workspace / var / mirror 状態の基点 = プロジェクト dir(per-project 化 — ADR-0011)。
+# 既定は cwd(プロジェクト dir から実行する想定)。--project で明示上書きできる。
+_PROJECT_DIR = os.getcwd()
+
+
+def set_project(path):
+    """config/workspace/var を解決する基点プロジェクト dir を設定する。"""
+    global _PROJECT_DIR
+    _PROJECT_DIR = os.path.abspath(path)
+
+
+def project_dir():
+    return _PROJECT_DIR
+
+
+def config_path():
+    return os.path.join(_PROJECT_DIR, "sharepoint.config.json")
 
 
 # --------------------------------------------------------------------------- #
 # 設定 / root 解決
 # --------------------------------------------------------------------------- #
 def load_config():
+    cfg_path = config_path()
     try:
-        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(cfg_path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
     except FileNotFoundError:
-        raise SystemExit(f"error: 設定が見つかりません: {_CONFIG_PATH}")
+        raise SystemExit(f"error: 設定が見つかりません: {cfg_path}")
     except ValueError as e:
         raise SystemExit(f"error: sharepoint.config.json が不正な JSON です: {e}")
     cfg.setdefault("enabled", False)
@@ -105,7 +124,7 @@ def active_root_name(cfg):
 
 
 def active_root_path(cfg):
-    return os.path.join(_PROTO, active_root_name(cfg))
+    return os.path.join(_PROJECT_DIR, active_root_name(cfg))
 
 
 def local_dir(cfg, name):
@@ -599,10 +618,10 @@ def plan_full_mirror(tree_paths, remote_rels, mcfg):
 
 
 def mirror_state_path():
-    """前回ミラー済み sha の記録先(var/ 配下。TC_VAR_DIR を尊重 — ADR-0004)。"""
+    """前回ミラー済み sha の記録先(プロジェクト dir の var/ 配下。TC_VAR_DIR を尊重 — ADR-0004)。"""
     var_dir = os.environ.get("TC_VAR_DIR", "var")
     if not os.path.isabs(var_dir):
-        var_dir = os.path.join(_PROTO, var_dir)
+        var_dir = os.path.join(_PROJECT_DIR, var_dir)
     return os.path.join(var_dir, "sharepoint_mirror.json")
 
 
@@ -869,25 +888,37 @@ COMMANDS = {
 
 
 def main():
-    p = argparse.ArgumentParser(description="MAGI の入出力を SharePoint と同期するブリッジ")
+    # --project を全サブコマンドで「前後どちらにも」置けるよう共通親に持たせる(ADR-0011)。
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--project",
+        default=None,
+        help="config/workspace/var の基点プロジェクト dir(既定: カレント)。ADR-0011",
+    )
+    p = argparse.ArgumentParser(
+        description="MAGI の入出力を SharePoint と同期するブリッジ", parents=[common]
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("root", help="workspace の絶対パスを出力")
-    sub.add_parser("status", help="設定・enabled・root を表示(通信なし)")
-    sub.add_parser("test", help="認証 + site/drive 解決を検証")
-    sub.add_parser("sync", help="双方向同期(全フォルダ・追加型・newer-wins。ADR-0009)")
+    sub.add_parser("root", parents=[common], help="workspace の絶対パスを出力")
+    sub.add_parser("status", parents=[common], help="設定・enabled・root を表示(通信なし)")
+    sub.add_parser("test", parents=[common], help="認証 + site/drive 解決を検証")
+    sub.add_parser("sync", parents=[common], help="双方向同期(全フォルダ・追加型・newer-wins。ADR-0009)")
     pm = sub.add_parser(
-        "mirror", help="docs/管理表を git main から Docs/ へ一方向ミラー(削除反映。ADR-0010)"
+        "mirror", parents=[common],
+        help="docs/管理表を git main から Docs/ へ一方向ミラー(削除反映。ADR-0010)",
     )
     pm.add_argument(
         "--full", action="store_true", help="全ファイル push + 遠隔余剰の削除(prune・修復用)"
     )
-    pp = sub.add_parser("pull", help="遠隔 → ローカル(選択的リカバリ用。既定: input)")
+    pp = sub.add_parser("pull", parents=[common], help="遠隔 → ローカル(選択的リカバリ用。既定: input)")
     pp.add_argument("names", nargs="*", help="folders キー(既定: input)")
-    pu = sub.add_parser("push", help="ローカル → 遠隔(既定: reviews deliberations brainstorms persona-tests media-output)")
+    pu = sub.add_parser("push", parents=[common], help="ローカル → 遠隔(既定: reviews deliberations brainstorms persona-tests media-output)")
     pu.add_argument("names", nargs="*", help="folders キー(既定: reviews deliberations brainstorms persona-tests media-output)")
-    pi = sub.add_parser("info", help="ローカルミラーパスに対応する SharePoint URL を出力")
+    pi = sub.add_parser("info", parents=[common], help="ローカルミラーパスに対応する SharePoint URL を出力")
     pi.add_argument("path", help="アクティブ root 下のローカルパス")
     args = p.parse_args()
+    if args.project:
+        set_project(args.project)
     cfg = load_config()
     COMMANDS[args.cmd](cfg, args)
 

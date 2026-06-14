@@ -531,6 +531,35 @@ def test_export_xlsx_embeds_past_receipt():
     assert len(ws._images) >= 1  # past/ から証憑サムネイルを埋込
 
 
+def test_export_xlsx_dedup_and_foreign_jpy():
+    pytest.importorskip("openpyxl")
+    tx = _tx_full("100", value=1000)
+    tx["currency"], tx["jpyrate"] = "THB", 5.0  # 外貨(THB)・レート5.0
+    ep.import_past(
+        _pc_expense(), date_from="2025-07-01", date_to="2026-06-15",
+        list_fn=lambda *a, **k: [tx], download_fn=lambda *a, **k: (b"img", "image/jpeg"),
+        get_office_id_fn=_office, access_token="tok",
+    )
+    # 同一 MF 取引(id=100)の古い registered 重複を台帳に混入させる。
+    led = ingest.Ledger.load(ep.ledger_path())
+    led.upsert(ingest.LedgerEntry(
+        receipt_id="2026-03-14_old", content_hash="h", date="2026-03-14", payee="OLD",
+        amount="1000", currency="THB", mf_status="registered", mf_transaction_id="100",
+        correlation_key="AC-old",
+    ))
+    led.save(ep.ledger_path())
+
+    out = ep.export_xlsx(embed_images=False)
+    import openpyxl
+
+    ws = openpyxl.load_workbook(out).active
+    mfids = [ws.cell(r, 16).value for r in range(2, ws.max_row + 1)]  # MF-ID 列
+    assert mfids.count("100") == 1  # 重複排除: past_ 側1行のみ
+    row = next(r for r in range(2, ws.max_row + 1) if ws.cell(r, 16).value == "100")
+    assert str(ws.cell(row, 10).value) == "5000"  # 円換算=value×rate=1000×5.0
+    assert ws.cell(row, 4).value == "Cafe del sol"  # past_ 側(OLD ではない)
+
+
 def test_cli_import_past_and_revise_past_dispatch(capsys, monkeypatch):
     from scripts import cli
     from scripts import expense_pipeline as ep_mod

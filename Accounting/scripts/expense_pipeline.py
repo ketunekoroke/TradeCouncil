@@ -377,17 +377,65 @@ def _load_draft_file(name: str | None) -> dict:
         return {}
 
 
+def _load_snapshot(tx_id: str | None) -> dict:
+    """過去分(import-past)の MF 現値スナップショットを読む(台帳の補完用)。"""
+    if not tx_id:
+        return {}
+    p = past_snapshot_path(tx_id)
+    if not p.is_file():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+
+
+def _snapshot_jpy(snap: dict) -> str:
+    """円換算額を出す(JPY はそのまま、外貨は value×fx_rate を四捨五入)。取れなければ ''。"""
+    from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+
+    val = (snap or {}).get("value")
+    if val in (None, ""):
+        return ""
+    if (snap.get("currency") or "JPY").upper() == "JPY":
+        return str(val)
+    try:
+        jpy = (Decimal(str(val)) * Decimal(str(snap.get("fx_rate")))).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP
+        )
+    except (InvalidOperation, ValueError, TypeError):
+        return ""
+    return str(jpy)
+
+
 def export_xlsx(out_path: str | Path | None = None, *, embed_images: bool = True) -> Path:
     """ledger + draft から経費明細台帳 xlsx を生成(各行に証憑サムネイルを埋込)。出力先を返す。"""
     from scripts import expense_xlsx
 
     led = ingest.Ledger.load(ledger_path())
+    # 重複排除: 取込んだ過去分(past_<id>)がある MF 取引は、古い registered 重複を除外する。
+    past_txids = {
+        e.mf_transaction_id for e in led.entries
+        if e.receipt_id.startswith(PAST_PREFIX) and e.mf_transaction_id
+    }
     rows: list[dict] = []
     images: dict[str, str] = {}
     for e in led.entries:
+        if not e.receipt_id.startswith(PAST_PREFIX) and e.mf_transaction_id in past_txids:
+            continue  # 同一 MF 取引は取込んだ過去分で代表
         draft = _load_draft_file(e.draft_path)
         pol = draft.get("policy", {})
         ex = draft.get("ex_transaction", {})
+        fx_rate = pol.get("fx_rate") or ""
+        description = pol.get("description") or ""
+        invoice = ex.get("number") or ""
+        jpy_amount = e.jpy_amount or ""
+        if e.receipt_id.startswith(PAST_PREFIX):  # 過去分は draft が無いので snapshot で補完
+            snap = _load_snapshot(e.mf_transaction_id)
+            fx_rate = fx_rate or (snap.get("fx_rate") or "")
+            description = description or (snap.get("remark") or "")
+            invoice = invoice or (snap.get("invoice_number") or "")
+            jpy_amount = jpy_amount or _snapshot_jpy(snap)
         rows.append({
             "mf_number": e.mf_number or "",
             "date": e.date,
@@ -396,10 +444,10 @@ def export_xlsx(out_path: str | Path | None = None, *, embed_images: bool = True
             "excise": e.excise or "",
             "amount": e.amount,
             "currency": e.currency,
-            "fx_rate": pol.get("fx_rate") or "",
-            "jpy_amount": e.jpy_amount or e.amount,
-            "invoice_number": ex.get("number") or "",
-            "description": pol.get("description") or "",
+            "fx_rate": fx_rate,
+            "jpy_amount": jpy_amount or e.amount,
+            "invoice_number": invoice,
+            "description": description,
             "correlation_key": e.correlation_key,
             "filename": e.filename,
             "mf_status": e.mf_status,
@@ -755,7 +803,7 @@ def import_past(
             amount=cur.value, currency=cur.currency, source_file="",
             filename=(receipt_name or (existing.filename if existing else "")),
             original_filename=None, ex_item=cur.ex_item, excise=cur.excise,
-            jpy_amount=(cur.value if cur.currency == "JPY" else None), correlation_key=corr,
+            jpy_amount=(_snapshot_jpy(cur.to_dict()) or None), correlation_key=corr,
             draft_path=None, mf_status=status, mf_transaction_id=cur.tx_id, mf_number=cur.number,
             created_at=(existing.created_at if existing else now),
             revised_at=(existing.revised_at if existing else None),

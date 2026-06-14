@@ -125,7 +125,10 @@
   (`download_ex_transaction_receipt`・`import_past`/`revise_past`)。既定ドライラン・`--confirm`・`--id`・
   `--rewrite-remark`。**証憑は再アップロードしない(再 OCR 回避)・`receipt_input` 不付与**。**証憑なし(紙)明細は
   WEB 手動フラグ**(自動補正対象外)。冪等(`past_<id>`・DL は size 一致 skip・差分ゼロ skip で二重 PUT 防止)。台帳
-  (xlsx)に過去分も記録(`past/` から証憑解決)。`ac expense status` に過去分件数。ネットワーク非依存テスト 19 件追加
+  (xlsx)に過去分も記録(`past/` から証憑解決・**同一MF取引の registered 重複を排除**・draft が無い過去分は
+  **snapshot から内容/レート/登録番号を補完**・**外貨は value×rate で円換算**)。`ac expense status` に過去分件数。
+  **実機運用 2026-06-15: 今期50件を取込み37件の証憑を照合 → Loft ¥580→¥638・印紙 対象外→非課税・摩薄薄房 THB
+  レート4.8→5.01(MUFG2月末仲値、ユーザ提供 `murc_2026.xls` で確定)を補正・検証。明細台帳50件を生成。** ネットワーク非依存テスト 20 件追加
   (`test_revise`=純粋・`test_mf_expense_api`=DL注入・`test_expense_cli`=list/download/update 注入。計205緑)。
   **ユーザー決定(2026-06-15)**: 今期分は新ポリシー全面再適用 / 台帳に記録(master push は任意) / 証憑なしは WEB 手動。
   **適用範囲**: 「過去取引を再計算しない」は締め済み期間の規定。本機能は **今期(未締め)限定**・過年度は対象外

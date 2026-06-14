@@ -45,10 +45,12 @@ fx:
   usdjpy_rate: 165
 
 notify:
-  # 通知先 URL は .env から読む。ここに書かない。
-  # チャネル別 URL は TEAMS_WORKFLOW_URL_<チャネル名大文字>(例 _OPS / _ALERTS)。
-  # 未設定チャネルは TEAMS_WORKFLOW_URL(default)へフォールバック(ADR-0003)
+  # 通知先 URL は .env から読む。ここに書かない。env 名はプロジェクト別プレフィックス付き(ADR-0011):
+  #   TEAMS_<env_prefix>_WORKFLOW_URL[_<チャネル名大文字>](例 TEAMS_TC_WORKFLOW_URL_OPS)。
+  #   未設定チャネルは TEAMS_<env_prefix>_WORKFLOW_URL(default)へフォールバック(ADR-0003)。
+  #   無印の TEAMS_WORKFLOW_URL[...] も後方互換で読む。
   backend: teams            # teams(Power Automate Workflows + Adaptive Card)| discord
+  env_prefix: TC            # 通知 env 名のスコープ(TradeCouncil)。SharePoint の env_prefix と対応
   min_severity: info        # info | warning | critical
   routing:                  # severity → チャネル名(未記載の severity は default URL へ)
     info: ops

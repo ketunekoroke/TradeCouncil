@@ -38,7 +38,7 @@
 
 > 🚨アラート はチャネル通知設定を「すべてのアクティビティ」にしておくと見逃しにくい。
 > チャネル構成の正式決定は第0回会議の P-11 決裁(これはたたき台 — ADR-0003)。
-> **全チャネル必須ではない**: URL 未設定のチャネル宛て通知は default(`TEAMS_WORKFLOW_URL`)へ
+> **全チャネル必須ではない**: URL 未設定のチャネル宛て通知は default(`TEAMS_TC_WORKFLOW_URL`)へ
 > フォールバックするため、まず default 1本で始めて後から増やせる。
 
 ## 2. フローの作成(チャネルごとに1本、計4本 + 任意で default 用1本)
@@ -48,7 +48,7 @@
 
 - フロー命名規約: **`TradeCouncil-<チャネルキー>`**(例 `TradeCouncil-alerts`)。
   Workflows アプリの一覧での識別と、障害時の実行履歴調査(§6)のために必須
-- default 用(`TEAMS_WORKFLOW_URL`)は 📢運用通知 チャネルのフローと兼用してよい
+- default 用(`TEAMS_TC_WORKFLOW_URL`)は 📢運用通知 チャネルのフローと兼用してよい
   (ops の URL を default にも設定する)
 
 ### 方法A: Teams の Workflows アプリから(推奨)
@@ -84,14 +84,18 @@
 
 コピーした各フローの URL を、リポジトリ直下の `.env` に設定する:
 
+> env 名は**プロジェクト別プレフィックス**(TradeCouncil = `TC`。system.yaml の `notify.env_prefix`)。
+> `TEAMS_TC_WORKFLOW_URL` のように「どのプロジェクトの通知か」が名前で分かる。無印の
+> `TEAMS_WORKFLOW_URL[...]` も後方互換で読まれる(ADR-0011)。
+
 ```dotenv
 # default(必須推奨。未設定チャネルのフォールバック先。ops と兼用可)
-TEAMS_WORKFLOW_URL=https://prod-XX.japaneast.logic.azure.com:443/workflows/...&sig=XXXX
+TEAMS_TC_WORKFLOW_URL=https://prod-XX.japaneast.logic.azure.com:443/workflows/...&sig=XXXX
 # チャネル別(設定したものだけ有効。未設定分は default へフォールバック)
-TEAMS_WORKFLOW_URL_OPS=https://...
-TEAMS_WORKFLOW_URL_ALERTS=https://...
-TEAMS_WORKFLOW_URL_GOVERNANCE=https://...
-TEAMS_WORKFLOW_URL_REPORTS=https://...
+TEAMS_TC_WORKFLOW_URL_OPS=https://...
+TEAMS_TC_WORKFLOW_URL_ALERTS=https://...
+TEAMS_TC_WORKFLOW_URL_GOVERNANCE=https://...
+TEAMS_TC_WORKFLOW_URL_REPORTS=https://...
 ```
 
 severity からチャネルへの振り分けは `config/system.yaml` の `notify.routing`
@@ -183,7 +187,7 @@ curl 等で手動テストしたい場合は上記 JSON をそのまま POST す
 |---|---|
 | カードが届かないが、ログにエラーもない | Workflows は受信時に必ず 202 を返すため、**フロー内部の失敗は送信側から見えない**。Workflows アプリ → 対象フロー → **[実行履歴(28日分)]** で失敗の有無と理由を確認する |
 | 実行履歴が「失敗」: チャネルが見つからない | 投稿先チャネルが削除/改名された。フローを編集して投稿先を選び直す |
-| `notify(fallback)` がログに出る | `TEAMS_WORKFLOW_URL` が未設定(または空)。`.env` の記載とファイル位置(リポジトリ直下)を確認 |
+| `notify(fallback)` がログに出る | `TEAMS_TC_WORKFLOW_URL` が未設定(または空)。`.env` の記載とファイル位置(リポジトリ直下)を確認 |
 | HTTP 401 / 403 | URL の `sig=` が欠落・改変されている。フローから URL を再コピーする(`&` を含む完全な URL であること。PowerShell で扱う際は引用符で囲む) |
 | HTTP 404 | フローが削除されたか無効化されている。Workflows アプリでフローの状態(オン/オフ)を確認 |
 | しばらく使っていたら止まった | ①フロー所有者の退職・ライセンス変更(→ §7)②90日間トリガーされなかったフローは自動で無効化されることがある → フローをオンに戻す |
@@ -211,7 +215,7 @@ notify:
 
 ```dotenv
 # .env
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+DISCORD_TC_WEBHOOK_URL=https://discord.com/api/webhooks/...
 ```
 
 Discord はプレーンテキスト通知(Adaptive Card 非対応)。両方の URL を設定しておけば、

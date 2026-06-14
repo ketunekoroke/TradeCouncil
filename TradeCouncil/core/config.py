@@ -140,8 +140,11 @@ _VALID_SEVERITIES = frozenset({"info", "warning", "critical"})
 class NotifyConfig(BaseModel):
     backend: Literal["discord", "teams"] = "discord"
     min_severity: str = "info"
+    # プロジェクト別 env 名のスコープ(ADR-0011)。TradeCouncil=TC。
+    # URL は <TEAMS|DISCORD>_<env_prefix>_<...>_URL を優先し、未設定なら無印の共有名へフォールバック。
+    env_prefix: str = "TC"
     # severity → チャネル名(例 {"warning": "alerts"})。URL は環境変数
-    # <TEAMS_WORKFLOW_URL|DISCORD_WEBHOOK_URL>_<チャネル名大文字> から解決する(ADR-0003)
+    # TEAMS_<prefix>_WORKFLOW_URL_<チャネル名大文字> 等から解決する(ADR-0003)
     routing: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("routing")
@@ -220,13 +223,17 @@ def get_config() -> SystemConfig:
     return load_config()
 
 
-def discord_webhook_url() -> str | None:
-    return os.environ.get("DISCORD_WEBHOOK_URL") or None
-
-
-def teams_workflow_url() -> str | None:
-    """Power Automate「Webhook 要求の受信時」フローの URL(SAS 署名 sig= を含む秘密)。"""
-    return os.environ.get("TEAMS_WORKFLOW_URL") or None
+# 通知 URL の env 名はプロジェクト別プレフィックス(TradeCouncil=TC)で名前空間を切る(ADR-0011)。
+#   既定:    TEAMS_TC_WORKFLOW_URL[_<CHANNEL>] / DISCORD_TC_WEBHOOK_URL[_<CHANNEL>]
+#   後方互換: 無印の TEAMS_WORKFLOW_URL[_<CHANNEL>] / DISCORD_WEBHOOK_URL[_<CHANNEL>]
+def _base_url(kind: str, prefix: str) -> str | None:
+    """kind は 'TEAMS_WORKFLOW' か 'DISCORD_WEBHOOK'。プロジェクト別名を優先し共有名へフォールバック。"""
+    head, tail = kind.split("_", 1)  # 例 TEAMS / WORKFLOW
+    if prefix:
+        v = os.environ.get(f"{head}_{prefix}_{tail}_URL")
+        if v:
+            return v
+    return os.environ.get(f"{kind}_URL") or None
 
 
 def _scan_channel_urls(prefix: str) -> dict[str, str]:
@@ -239,11 +246,29 @@ def _scan_channel_urls(prefix: str) -> dict[str, str]:
     }
 
 
-def teams_channel_urls() -> dict[str, str]:
-    """チャネル別 Workflow URL(TEAMS_WORKFLOW_URL_OPS 等)。"""
-    return _scan_channel_urls("TEAMS_WORKFLOW_URL")
+def _channel_urls(kind: str, prefix: str) -> dict[str, str]:
+    """共有名のチャネル URL に、プロジェクト別名のチャネル URL を上書きで重ねる。"""
+    head, tail = kind.split("_", 1)
+    urls = _scan_channel_urls(f"{kind}_URL")  # 後方互換(無印)
+    if prefix:
+        urls.update(_scan_channel_urls(f"{head}_{prefix}_{tail}_URL"))  # プロジェクト別が勝つ
+    return urls
 
 
-def discord_channel_urls() -> dict[str, str]:
-    """チャネル別 Discord Webhook URL(DISCORD_WEBHOOK_URL_ALERTS 等)。"""
-    return _scan_channel_urls("DISCORD_WEBHOOK_URL")
+def discord_webhook_url(prefix: str = "") -> str | None:
+    return _base_url("DISCORD_WEBHOOK", prefix)
+
+
+def teams_workflow_url(prefix: str = "") -> str | None:
+    """Power Automate「Webhook 要求の受信時」フローの URL(SAS 署名 sig= を含む秘密)。"""
+    return _base_url("TEAMS_WORKFLOW", prefix)
+
+
+def teams_channel_urls(prefix: str = "") -> dict[str, str]:
+    """チャネル別 Workflow URL(TEAMS_TC_WORKFLOW_URL_OPS 等。無印も後方互換)。"""
+    return _channel_urls("TEAMS_WORKFLOW", prefix)
+
+
+def discord_channel_urls(prefix: str = "") -> dict[str, str]:
+    """チャネル別 Discord Webhook URL(DISCORD_TC_WEBHOOK_URL_ALERTS 等。無印も後方互換)。"""
+    return _channel_urls("DISCORD_WEBHOOK", prefix)

@@ -312,6 +312,36 @@ def test_get_notifier_builds_channel_urls_from_env(
     assert posted[-1]["url"] == DUMMY_URL
 
 
+def test_get_notifier_prefers_project_prefixed_teams_env(
+    posted: list, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """プロジェクト別名 TEAMS_<prefix>_WORKFLOW_URL[_<CH>] が共有名より優先される(ADR-0011)。"""
+    import core.config as config_mod
+
+    tc_default = DUMMY_URL + "?tc"
+    tc_alerts = ALERTS_URL + "?tc"
+    monkeypatch.setattr(config_mod, "load_dotenv", lambda *a, **k: None)
+    for key in list(__import__("os").environ):
+        if key.startswith(("TEAMS_", "DISCORD_")):
+            monkeypatch.delenv(key, raising=False)
+    # 共有(無印)とプロジェクト別(TC)の両方を設定 → TC が勝つ
+    monkeypatch.setenv("TEAMS_WORKFLOW_URL", DUMMY_URL)
+    monkeypatch.setenv("TEAMS_WORKFLOW_URL_ALERTS", ALERTS_URL)
+    monkeypatch.setenv("TEAMS_TC_WORKFLOW_URL", tc_default)
+    monkeypatch.setenv("TEAMS_TC_WORKFLOW_URL_ALERTS", tc_alerts)
+
+    cfg = config_mod.load_config()
+    cfg.notify.backend = "teams"  # type: ignore[assignment]
+    cfg.notify.routing = ROUTING  # env_prefix は既定の "TC"
+    monkeypatch.setattr(config_mod, "get_config", lambda: cfg)
+
+    n = get_notifier()
+    n.send("critical → TC alerts", "critical")
+    assert posted[-1]["url"] == tc_alerts
+    n.send("info → TC default", "info")
+    assert posted[-1]["url"] == tc_default
+
+
 # --- シークレット検出(hook)---
 
 

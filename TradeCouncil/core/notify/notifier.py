@@ -221,14 +221,14 @@ def get_notifier() -> Notifier:
     cfg = get_config().notify
     if cfg.backend == "teams":
         return TeamsNotifier(
-            teams_workflow_url(),
+            teams_workflow_url(cfg.env_prefix),
             cfg.min_severity,
-            channel_urls=teams_channel_urls(),
+            channel_urls=teams_channel_urls(cfg.env_prefix),
             routing=cfg.routing,
         )
     return DiscordNotifier(
-        discord_webhook_url(),
+        discord_webhook_url(cfg.env_prefix),
         cfg.min_severity,
-        channel_urls=discord_channel_urls(),
+        channel_urls=discord_channel_urls(cfg.env_prefix),
         routing=cfg.routing,
     )

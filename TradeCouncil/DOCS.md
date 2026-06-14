@@ -218,8 +218,9 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
 1. 専用チーム「TradeCouncil」を作成し、4チャネル(運用通知/アラート/ガバナンス/レポート)を追加
 2. チャネルごとに Workflows テンプレート「**Webhook 要求を受信したらチャネルに投稿する**」で
    フローを作成(命名: `TradeCouncil-<key>`)し、発行された URL を `.env` の
-   `TEAMS_WORKFLOW_URL_<KEY>`(OPS/ALERTS/GOVERNANCE/REPORTS)に設定。
-   `TEAMS_WORKFLOW_URL`(default)は未設定チャネルのフォールバック先 — **まず1本でも運用可**
+   `TEAMS_TC_WORKFLOW_URL_<KEY>`(OPS/ALERTS/GOVERNANCE/REPORTS)に設定(env 名は
+   プロジェクト別プレフィックス TC。無印 `TEAMS_WORKFLOW_URL_<KEY>` も後方互換 — ADR-0011)。
+   `TEAMS_TC_WORKFLOW_URL`(default)は未設定チャネルのフォールバック先 — **まず1本でも運用可**
 3. severity→チャネルの振り分けは `config/system.yaml` の `notify.routing`
    (info→ops / warning→alerts / critical→alerts)。発火側は `channel="governance"` 等で明示も可能
 4. URL は `sig=` の SAS 署名を含む**秘密情報**(共有・コミット禁止 — pre-commit が検出)
@@ -227,7 +228,7 @@ proposals(決裁キュー)/ council_sessions(会議記録)。
    チャネル別疎通は手順書 §4 のワンライナー
 6. 注意: フローは**作成者アカウントに紐づく**(4本とも共同所有者を追加推奨)。
    Workflows は 202 を返すためフロー内部の失敗は検知不能 — **通知はベストエフォート**。
-   Discord へは `notify.backend: discord` + `DISCORD_WEBHOOK_URL(_<KEY>)` で切替可
+   Discord へは `notify.backend: discord` + `DISCORD_TC_WEBHOOK_URL(_<KEY>)` で切替可
 
 ## 10. LLMバックエンドと SharePoint
 

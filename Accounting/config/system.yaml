@@ -1,0 +1,23 @@
+# Accounting 技術設定(運用ポリシーではない)。
+# 会計の判断方針は docs/accounting-policy.md(正本)、勘定科目は config/accounts.yaml。
+# 秘匿情報は書かない(ルート共有 .env から読む)。
+
+# 会計バックエンド(MoneyForward 前提 — docs/design.md)。
+# API 接続設定(OAuth/エンドポイント・client_id)は config/moneyforward.config.json に置き、
+# 秘密(client_secret)はルート共有 .env(MONEYFORWARD_*)から読む。解決は core/moneyforward.py。
+backend:
+  provider: moneyforward          # 現状は MoneyForward 前提。将来アダプタ抽象化(BL-AC-100)
+
+# 通知(Teams 既定。ADR-0002 系。env は TEAMS_AC_WORKFLOW_URL[_<チャネル>])。
+notify:
+  backend: teams                  # teams | discord | log
+  env_prefix: AC
+
+# 為替(方針は accounting-policy.md。ここはソース設定の技術項目のみ)。
+fx:
+  rate_source: ""                 # 例: 銀行 TTM。継続適用・税理士確認(docs/accounting-policy.md)
+  base_rule: ttm_trade_date       # 取引日 TTM(原則)
+
+# 抽出の確信度しきい値(これ未満は Teams 確認に回す)。
+extract:
+  confidence_threshold: 0.8

@@ -1,0 +1,29 @@
+{
+  "enabled": false,
+  "env_prefix": "AC",
+  "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
+  "tenant_id": "",
+  "client_id": "",
+  "drive": "Documents",
+  "root": "Accounting/Workspace",
+  "folders": {
+    "input": "input",
+    "reviews": "reviews",
+    "council": "council",
+    "media-output": "media-output"
+  },
+  "git_mirror": {
+    "branch": "main",
+    "remote": "Accounting/Docs",
+    "paths": ["Accounting/docs"],
+    "files": [
+      "Accounting/README.md",
+      "Accounting/DOCS.md",
+      "Accounting/REQUIREMENTS.md",
+      "Accounting/FEATURES.md",
+      "Accounting/TESTCASES.md",
+      "Accounting/BACKLOG.md",
+      "Accounting/DEVELOPMENT.md"
+    ]
+  }
+}

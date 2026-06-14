@@ -1,0 +1,30 @@
+# 取引内容 → 勘定科目 のマッピング(雛形)。
+# 方針は docs/accounting-policy.md「勘定科目」節。不明な科目は推測で確定せず Teams 確認に回す。
+# ここはあくまで初期マッピングで、確定値・最終判断は運用と税理士確認で更新する。
+
+# キーは取引内容のキーワード(部分一致を想定)、値は { account: 勘定科目, tax: 税区分メモ }。
+mappings:
+  # SaaS・ソフトウェア利用料
+  - match: ["saas", "subscription", "サブスク", "ソフトウェア"]
+    account: 通信費
+    note: "海外 SaaS はリバースチャージ/対象外の判断が割れる → 税理士確認(docs/company-specific.md)"
+
+  # 旅費交通費
+  - match: ["taxi", "train", "flight", "交通", "旅費", "宿泊"]
+    account: 旅費交通費
+    note: "海外で消費した分は国外取引=対象外/不課税。内外判定を先に"
+
+  # 会議費・交際費
+  - match: ["meeting", "会議", "打合せ", "接待"]
+    account: 会議費
+    note: "高額・例外は要確認フラグ。交際費との区分に注意"
+
+  # 通信費
+  - match: ["internet", "mobile", "通信", "回線"]
+    account: 通信費
+    note: ""
+
+# 未マッチ時の既定(推測で確定しない。フラグして確認に回す)。
+default:
+  account: 未確定
+  note: "マッピング未定義。Teams 確認に回す(推測で確定しない)"

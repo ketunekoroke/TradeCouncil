@@ -1,0 +1,43 @@
+[project]
+name = "accounting"
+version = "0.1.0"
+description = "Accounting - 会計経理支援システム(MoneyForward 連携・経費登録ガバナンス。Phase 0 足場)"
+requires-python = ">=3.12"
+# Phase 0(足場)は標準ライブラリのみで動く。API スパイク・本体実装で順次追加する。
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+# AWS(将来フェーズ・docs/adr/0001-aws-hosting.md)。本体には含めない。
+aws = [
+    "boto3>=1.34",       # S3 / CloudWatch / Secrets クライアント
+    "watchtower>=3.1",   # logging → CloudWatch Logs ハンドラ(直送する場合)
+]
+
+# 注: `ac` シム(.exe)はブロックされる環境があるため、正準の起動は
+#   cd Accounting; ..\.venv\Scripts\python.exe -m scripts.cli ...
+# とする(TradeCouncil の `tc` と同じ運用 — CLAUDE.md)。
+# また Accounting と TradeCouncil は同名のトップレベル package(core/scripts)を持つため、
+# 共有 .venv へ editable install しない(衝突回避)。各プロジェクト dir から実行する。
+[project.scripts]
+ac = "scripts.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = { find = { include = ["core*", "scripts*"] } }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

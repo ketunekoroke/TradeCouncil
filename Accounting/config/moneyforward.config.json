@@ -1,0 +1,22 @@
+{
+  "enabled": false,
+  "env_prefix": "AC",
+  "client_id": "",
+  "oauth": {
+    "authorize_url": "",
+    "token_url": "",
+    "redirect_uri": "http://localhost:8765/callback",
+    "scopes": []
+  },
+  "api": {
+    "expense_base": "",
+    "accounting_base": "",
+    "box_base": ""
+  },
+  "_notes": [
+    "非秘密の接続設定のみを置く。client_secret は置かない(ルート共有 .env の MONEYFORWARD_CLIENT_SECRET)。",
+    "URL/スコープは製品ドメインの Swagger / 開発者ポータルで確認して記入する(docs/caveats.md)。",
+    "各フィールドの解決順: MONEYFORWARD_AC_<FIELD>(env) → この config 値 → MONEYFORWARD_<FIELD>(env)。",
+    "client_id は識別子のため config に直接書いても、env(MONEYFORWARD_CLIENT_ID)で渡してもよい。"
+  ]
+}

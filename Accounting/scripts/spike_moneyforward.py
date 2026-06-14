@@ -106,8 +106,12 @@ def fetch_token(pc: mf.ProductConfig) -> str:
 
 
 def _offices_url(pc: mf.ProductConfig) -> str | None:
-    """offices 取得 URL を決める(env 優先 → api_base + /offices)。無ければ None。"""
-    url = _penv(pc.product, "offices_url")
+    """疎通確認の呼び先 URL を決める(env 上書き → config の offices_url → api_base + /offices)。
+
+    会計は認可サーバ v2 の `/v2/tenant`(config に記入済・2026-06-14 実機検証済)。
+    パスが `/offices` 形でない系統は config の `api.offices_url` で明示する。無ければ None。
+    """
+    url = _penv(pc.product, "offices_url") or pc.offices_url
     if url:
         return url
     base = (pc.api_base or "").rstrip("/")

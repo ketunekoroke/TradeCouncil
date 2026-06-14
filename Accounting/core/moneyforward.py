@@ -50,6 +50,7 @@ class ProductConfig:
     redirect_uri: str | None
     scopes: list[str] = field(default_factory=list)
     api_base: str | None = None
+    offices_url: str | None = None  # 疎通確認の呼び先(未設定なら api_base + /offices)
     client_auth: str = "client_secret_basic"  # token エンドポイントの client 認証方式
 
     def missing_required(self) -> list[str]:
@@ -70,6 +71,7 @@ class ProductConfig:
             "redirect_uri": self.redirect_uri or "(未設定)",
             "scopes": self.scopes,
             "api_base": self.api_base or "(未設定)",
+            "offices_url": self.offices_url or "(未設定)",
             "client_auth": self.client_auth,
             "ready": self.is_ready(),
             "missing": self.missing_required(),
@@ -155,6 +157,7 @@ def _load_product(product: str, raw: dict) -> ProductConfig:
         redirect_uri=_field(product, "redirect_uri", oauth.get("redirect_uri")),
         scopes=scopes,
         api_base=_field(product, "api_base", api.get("base")),
+        offices_url=_field(product, "offices_url", api.get("offices_url")),
         client_auth=_field(product, "client_auth", oauth.get("client_auth")) or "client_secret_basic",
     )
 

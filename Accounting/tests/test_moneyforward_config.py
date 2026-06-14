@@ -5,7 +5,8 @@ import os
 
 import pytest
 
-from core import config, moneyforward as mf
+from core import config
+from core import moneyforward as mf
 
 
 @pytest.fixture(autouse=True)
@@ -99,9 +100,13 @@ def test_ready_when_all_required_set(tmp_path, monkeypatch):
 
 def test_real_config_file_has_default_endpoints():
     cfg = mf.load_config()  # 実ファイル(config/moneyforward.config.json)
-    assert cfg.get("accounting").token_url == "https://api.biz.moneyforward.com/token"
+    acc = cfg.get("accounting")
+    assert acc.token_url == "https://api.biz.moneyforward.com/token"
     assert cfg.get("expense").token_url == "https://expense.moneyforward.com/oauth/token"
-    # 既定では secret/client_id 未設定なので ready ではない
+    # 実機検証済の疎通確認エンドポイントと必須スコープ(2026-06-14)。
+    assert acc.offices_url == "https://api.biz.moneyforward.com/v2/tenant"
+    assert "mfc/admin/tenant.read" in acc.scopes
+    # 既定では secret/client_id 未設定なので ready ではない(env は fixture で遮断)。
     assert cfg.ready_products() == []
 
 

@@ -9,6 +9,7 @@
         "redirect_uri": "http://localhost:8765/callback",
         "client_auth": "client_secret_basic",
         "scopes": [
+          "mfc/admin/tenant.read",
           "mfc/accounting/offices.read",
           "mfc/accounting/accounts.read",
           "mfc/accounting/taxes.read",
@@ -17,7 +18,10 @@
           "mfc/accounting/journal.write"
         ]
       },
-      "api": { "base": "" }
+      "api": {
+        "base": "",
+        "offices_url": "https://api.biz.moneyforward.com/v2/tenant"
+      }
     },
     "expense": {
       "enabled": false,
@@ -37,6 +41,8 @@
     "  MONEYFORWARD_ACCOUNTING_CLIENT_SECRET / MONEYFORWARD_EXPENSE_CLIENT_SECRET に置く。",
     "各フィールドの解決順: MONEYFORWARD_<PRODUCT>_<FIELD>(env) → この products.<product> の値。",
     "authorize_url/token_url は公式の既定値を記入済み。scopes は使う API のリファレンス/Swagger で確認して追記。",
+    "会計の api.offices_url = 認可サーバ v2 の /v2/tenant(疎通確認の呼び先。2026-06-14 実機検証済)。",
+    "  /v2/tenant は scope mfc/admin/tenant.read が必須・応答は {tenant_code, tenant_name} の単一オブジェクト。",
     "手順: docs/setup/moneyforward-api-setup.md"
   ]
 }

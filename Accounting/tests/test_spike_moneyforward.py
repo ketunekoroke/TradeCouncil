@@ -92,15 +92,23 @@ def test_token_request_no_scopes_omits_scope(monkeypatch):
     assert "scope" not in data
 
 
-# --- _offices_url: env 上書き → api_base+/offices → None ----------------------------------
+# --- _offices_url: env 上書き → config の offices_url → api_base+/offices → None -----------
 
 def test_offices_url_from_api_base():
     assert spike._offices_url(_pc()) == "https://e.test/api/offices"
 
 
+def test_offices_url_config_field_beats_api_base():
+    # /offices 形でないパス(例: 会計の /v2/tenant)は config の offices_url で明示する。
+    pc = _pc(offices_url="https://api.biz.moneyforward.com/v2/tenant")
+    assert spike._offices_url(pc) == "https://api.biz.moneyforward.com/v2/tenant"
+
+
 def test_offices_url_env_override(monkeypatch):
     monkeypatch.setenv("MONEYFORWARD_EXPENSE_OFFICES_URL", "https://e.test/custom/offices")
-    assert spike._offices_url(_pc()) == "https://e.test/custom/offices"
+    # env は config の offices_url よりも優先される。
+    assert spike._offices_url(_pc(offices_url="https://e.test/config/tenant")) == \
+        "https://e.test/custom/offices"
 
 
 def test_offices_url_none_without_base():

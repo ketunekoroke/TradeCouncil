@@ -22,13 +22,21 @@
   `products.{accounting,expense}` 構造に、env を `MONEYFORWARD_<PRODUCT>_*`(ACCOUNTING/EXPENSE)へ。
   `ac mf config [--product]` で両系統を表示・検証。OAuth 既定エンドポイントを公式値で記入。手順は
   docs/setup/moneyforward-api-setup.md。
+- **BL-AC-010(会計分・完了 2026-06-14)** — クラウド会計の **実 API 疎通を確認**。OAuth 認可コードフロー
+  (ブラウザ認可 → token 交換 `client_secret_basic`)が成功し、認証付き REST `GET /v2/tenant` で事業者情報
+  (`{tenant_code, tenant_name}`)を取得。`/v2/tenant` は scope **`mfc/admin/tenant.read`** が必須(会計ドメインの
+  `mfc/accounting/*` とは別の admin 名前空間)。config に offices_url・scope を記入済(`api.offices_url`)。
+  **判明(開発者サイト確認)**: 会計には「事業者一覧」エンドポイントは無い。OAuth トークンが事業者(tenant)に
+  紐づくため、事業者の取得は `/v2/tenant` が正(= 会計側の疎通はこれで完結)。残: 経費(expense)系統 → **BL-AC-017**。
 
 ## Backlog(次に着手)
 
-- **BL-AC-010** — MoneyForward 実エンドポイントの確定と疎通(`config/moneyforward.config.json` の URL/scopes を
-  製品ドメインの Swagger で確認して記入 → 実アカウントで `scripts/spike_moneyforward.py` 疎通)。
-  スモールビジネスプランで開発者向け API が有効化できるか実アカウント確認(→ docs/caveats.md)。
-  **archive された expense-api-doc リポジトリは使わない**。grant_type / offices URL は env で調整可。
+- **BL-AC-017** — クラウド経費(expense)の実エンドポイント確定と疎通: 経費の開発者向けアプリで
+  client_id/secret を登録 → 疎通。offices 一覧候補は `GET https://expense.moneyforward.com/api/external/v1/offices`
+  (所属組織の一覧。**Swagger https://expense.moneyforward.com/api/index.html で要確認**)。経費はユーザーが複数組織に
+  所属しうるため一覧が存在する(会計と異なる)。**archive された expense-api-doc / api-doc リポジトリは使わない**
+  (docs/caveats.md)。offices URL は config の `products.expense.api.offices_url`(または env
+  `MONEYFORWARD_EXPENSE_OFFICES_URL`)で指定。
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
   pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。
 - **BL-AC-016** — 認可コードフローの補助(ローカルで `redirect_uri` を受けて `code` を取得する簡易リスナ、

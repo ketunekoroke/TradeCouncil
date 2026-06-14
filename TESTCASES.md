@@ -2,7 +2,7 @@
 
 **モノレポ構造にかかわる検証だけ**。各プロジェクトのテストは
 [Magi/TESTCASES.md](Magi/TESTCASES.md) / [TradeCouncil/TESTCASES.md](TradeCouncil/TESTCASES.md) /
-[shared/TESTCASES.md](shared/TESTCASES.md)。
+[Accounting/TESTCASES.md](Accounting/TESTCASES.md) / [shared/TESTCASES.md](shared/TESTCASES.md)。
 
 | ID | タイトル | 実行方法 | 関連 |
 |---|---|---|---|
@@ -11,3 +11,5 @@
 | TC-MR03 | **疎結合の実証**: `Magi/` を一時退避しても `tc test` が緑(TradeCouncil の MAGI への実行時依存ゼロ) | Magi を mv → `tc test` → 戻す | REQ-MR02 |
 | TC-MR04 | `core` の import グラフに `shared`/`Magi` 参照が無い | `grep -rE 'import (shared|Magi)' TradeCouncil/core` が空 | REQ-MR02 |
 | TC-MR05 | per-project ミラー: TradeCouncil の docs 編集 → SharePoint `TradeCouncil/Docs/` のみ更新(Magi は無風)。Magi 側も対称 | `tc hooks install` 後にコミットで観察 | REQ-MR06 |
+| TC-MR06 | 会計スイートが緑(Accounting/ 内) | `cd Accounting; ..\.venv\Scripts\python.exe -m scripts.cli test` | REQ-MR01 |
+| TC-MR07 | **疎結合の実証**: `Accounting/` を一時退避しても `tc test`・Magi の4シナリオが無傷。逆に他を消しても `ac test` が緑 | Accounting を mv → 各 test → 戻す | REQ-MR02 |

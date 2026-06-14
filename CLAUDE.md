@@ -1,4 +1,4 @@
-# CLAUDE.md — モノレポ・ルーター(Magi / TradeCouncil / shared)
+# CLAUDE.md — モノレポ・ルーター(Magi / TradeCouncil / Accounting / shared)
 
 このリポジトリは**疎結合の複数プロジェクトを1リポジトリ・1ブランチで管理するモノレポ**
 (ADR-0011)。**開発は各プロジェクトのディレクトリへ `cd` してから行う** — そのディレクトリの
@@ -11,16 +11,19 @@
 |---|---|---|
 | **[Magi/](Magi/CLAUDE.md)** | 汎用マルチエージェント基盤(ブレスト・資料レビュー・合議・人格テスト。MAGI 3人格) | `cd Magi` |
 | **[TradeCouncil/](TradeCouncil/CLAUDE.md)** | 自動売買ガバナンス・フレームワーク(売買BOT・リスク・会議体) | `cd TradeCouncil` |
+| **[Accounting/](Accounting/CLAUDE.md)** | 会計経理支援システム(MoneyForward 連携・経費登録・検証ゲート・税務フラグ) | `cd Accounting` |
 | **shared/** | 共通ツール層(LLMブリッジ・SharePoint・office変換・git フック)。path 起動・pip 不要 | 直接編集可 |
 
 ## 依存と疎結合(削除可能性の保証 — ADR-0011)
 
 - `Magi` → `shared` のみ。`TradeCouncil`(売買の実行時 `core/`)→ **依存なし**。
-  `TradeCouncil` の council シナリオ → `shared`(LLM 召喚)
-- **`Magi` ⇎ `TradeCouncil` は相互非依存**。一方のディレクトリを削除しても他方は動作する
-  (`Magi/` を消しても `tc test` は緑。`TradeCouncil/` を消しても Magi の4シナリオは無傷)
-- `shared/` は両者の土台。消すと両者の外部 LLM/SharePoint 連携が縮退するが、各プロジェクト
-  固有のロジック(売買 core・シナリオ md)は生存する
+  `TradeCouncil` の council シナリオ → `shared`(LLM 召喚)。`Accounting`(会計の実行時 `core/`)
+  → **依存なし**。`Accounting` のシナリオ → `shared`(LLM 召喚・MoneyForward 連携の補助)
+- **各プロジェクト(`Magi` / `TradeCouncil` / `Accounting`)は相互非依存**。いずれかのディレクトリを
+  削除しても他は動作する(`Magi/` を消しても `tc test`・`ac test` は緑。`Accounting/` を消しても
+  Magi の4シナリオ・売買スイートは無傷。各 `core/` の import グラフに他プロジェクト参照なし)
+- `shared/` は全プロジェクトの土台。消すと外部 LLM/SharePoint 連携が縮退するが、各プロジェクト
+  固有のロジック(売買 core・会計 core・シナリオ md・docs)は生存する
 
 ## 共通の決まり(全プロジェクト)
 

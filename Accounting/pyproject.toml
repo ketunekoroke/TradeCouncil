@@ -11,12 +11,14 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4",
 ]
-# 経費取込パイプライン(BL-AC-020/021/022)。scripts/ 層のみで使う(core は stdlib のみを維持)。
+# 経費取込パイプライン(BL-AC-020/021/022/024)。scripts/ 層のみで使う(core は stdlib のみを維持)。
 #   Pillow = 画像トリミング/サムネイル / PyYAML = config/*.yaml 読込 / openpyxl = 明細台帳 xlsx 生成
+#   pypdf  = 複数レシート PDF の分割(ac expense split)
 pipeline = [
     "Pillow>=10",
     "PyYAML>=6",
     "openpyxl>=3.1",
+    "pypdf>=4",
 ]
 # AWS(将来フェーズ・docs/adr/0001-aws-hosting.md)。本体には含めない。
 aws = [

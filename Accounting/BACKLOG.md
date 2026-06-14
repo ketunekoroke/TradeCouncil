@@ -101,6 +101,20 @@
   テスト追加(計167緑・URL/POST/notify 注入で無ネットワーク)。**将来**: EXPENSE チャネル通知、ヘッドレス時の
   Teams 確認カード(BL-AC-013)。
 
+- **BL-AC-024(完了 2026-06-15)** — **複数レシート PDF の分割**(`ac expense split`)。1ファイルに複数の
+  レシートが入った PDF を「1ファイル1レシート」へ分割する工程をパイプライン化(従来は pypdf を手作業で実行)。
+  継ぎ目は他工程と同じく **Claude が書くサイドカー**: `var/expense/split/<name>.json`(`parts:[{pages,suffix,note}]`
+  または `mode:"per_page"`)。**計画・検証は純粋な `core/pdfsplit`**(ページ番号1始まり・**範囲外(off-by-one)/
+  空パート/suffix 重複・不正文字を実行前に弾く** → pypdf の不透明な `IndexError` を明確なエラーへ)、**実 pypdf
+  操作は `scripts/pdfproc`**(`page_count`・部分集合書出し)。`pull` と `process` の間に位置づけ。既定ドライラン・
+  `--confirm` で実分割。分割後のパートは raw/ に置き、**元 PDF は削除せず `var/expense/split_src/` へ退避**(SharePoint
+  inbox にも原本が残る=復元可・不可逆操作なし)。**分割サイドカーが無いファイルは分割しない**(複数ページ≠複数
+  レシート。Embassy の様な1レシート複数ページを誤分割しないため)。再実行は冪等(原本退避済み・既存出力は上書き
+  せず skip)。`pyproject.toml` の optional-deps `pipeline` に `pypdf>=4` を追加、`test_decoupling` の zero-dep 検査に
+  `pypdf` を追加。ネットワーク非依存テスト 19 件追加(`test_pdfsplit`=純粋・`test_pdfproc`=pypdf importorskip・
+  `test_expense_cli`=注入。計186緑)。**実 pypdf でページ分割を検証済**。**未了/将来**: 1枚画像に複数レシートが
+  写る場合の分割(現状は PDF のみ。画像は別レシートとして撮影 or crop で対応)、ヘッドレス時の分割サイドカー自動生成。
+
 ## Backlog(次に着手)
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
   pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。**一部完了**: `core/gate.py` と

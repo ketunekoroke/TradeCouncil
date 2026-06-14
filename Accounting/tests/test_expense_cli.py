@@ -48,6 +48,25 @@ def _seed_usage():
     ep.save_usage(idx)
 
 
+def _write_split_spec(raw_name, parts, mode="explicit"):
+    ep.sub("split").mkdir(parents=True, exist_ok=True)
+    spec = {"source_file": raw_name, "mode": mode, "parts": parts}
+    ep.split_spec_path(raw_name).write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+
+
+def _fake_split(src, jobs):
+    """各ジョブの出力先に最小 PDF を書く(pypdf を使わない注入用)。"""
+    from pathlib import Path
+
+    out = []
+    for p, _pages in jobs:
+        p = Path(p)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"%PDF-1.4 " + p.name.encode())
+        out.append(p)
+    return out
+
+
 def _pc_expense():
     return ProductConfig(
         product="expense", label="クラウド経費", enabled=True, client_id="c", client_secret="s",
@@ -311,6 +330,66 @@ def test_export_xlsx_from_ledger():
     assert ws.cell(1, 4).value == "支払先"
     assert ws.cell(2, 4).value == "JR東日本"
     assert len(ws._images) == 1  # 証憑サムネイル
+
+
+def test_split_pdfs_dry_run_then_confirm():
+    _write_raw("multi.pdf", b"%PDF-1.4 fake")
+    _write_split_spec("multi.pdf", [{"pages": [1], "suffix": "a"}, {"pages": [2], "suffix": "b"}])
+
+    dry = ep.split_pdfs(confirm=False, page_count_fn=lambda p: 2, split_fn=_fake_split)
+    assert dry["dry_run"] and dry["skipped"][0]["parts"] == ["multi_a.pdf", "multi_b.pdf"]
+    assert not (ep.sub("raw") / "multi_a.pdf").exists()  # ドライランでは書かない
+
+    res = ep.split_pdfs(confirm=True, page_count_fn=lambda p: 2, split_fn=_fake_split)
+    assert res["split"][0]["parts"] == ["multi_a.pdf", "multi_b.pdf"]
+    assert (ep.sub("raw") / "multi_a.pdf").exists() and (ep.sub("raw") / "multi_b.pdf").exists()
+    assert not (ep.sub("raw") / "multi.pdf").exists()  # 原本は raw から退避
+    assert (ep.sub("split_src") / "multi.pdf").exists()  # 退避先に残る(復元可)
+
+    # 再実行: 原本は退避済み → 対象なし(冪等)。
+    res2 = ep.split_pdfs(confirm=True, page_count_fn=lambda p: 2, split_fn=_fake_split)
+    assert not res2["split"] and not res2["errors"]
+
+
+def test_split_pdfs_catches_off_by_one():
+    _write_raw("multi.pdf", b"%PDF-1.4 fake")
+    _write_split_spec("multi.pdf", [{"pages": [3], "suffix": "a"}])  # 全2ページに3 → 範囲外
+    res = ep.split_pdfs(confirm=True, page_count_fn=lambda p: 2, split_fn=_fake_split)
+    assert res["errors"] and "範囲外" in res["errors"][0]["error"]
+    assert (ep.sub("raw") / "multi.pdf").exists()  # 失敗時は退避しない
+
+
+def test_split_pdfs_skips_existing_outputs():
+    _write_raw("multi.pdf", b"%PDF-1.4 fake")
+    _write_raw("multi_a.pdf", b"already")  # 既に分割済み相当
+    _write_split_spec("multi.pdf", [{"pages": [1], "suffix": "a"}])
+    res = ep.split_pdfs(confirm=True, page_count_fn=lambda p: 1, split_fn=_fake_split)
+    assert res["skipped"] and "既に存在" in res["skipped"][0]["reason"]
+
+
+def test_split_then_process_each_part():
+    # 分割 → 各パートに抽出サイドカー → process が1レシートずつ処理。
+    _seed_usage()
+    _write_raw("multi.pdf", b"%PDF-1.4 fake")
+    _write_split_spec("multi.pdf", [{"pages": [1], "suffix": "a"}, {"pages": [2], "suffix": "b"}])
+    ep.split_pdfs(confirm=True, page_count_fn=lambda p: 2, split_fn=_fake_split)
+    _write_sidecar("multi_a.pdf", payee="SAN KYU", amount="500")
+    _write_sidecar("multi_b.pdf", payee="2nd STREET", amount="800")
+    res = ep.process_all()
+    assert len(res["processed"]) == 2
+    names = {p["processed_file"] for p in res["processed"]}
+    assert any("SAN KYU" in n for n in names) and any("2nd STREET" in n for n in names)
+
+
+def test_cli_split_dispatch(capsys, monkeypatch):
+    from scripts import cli, pdfproc
+
+    _write_raw("multi.pdf", b"%PDF-1.4 fake")
+    _write_split_spec("multi.pdf", [{"pages": [1], "suffix": "a"}, {"pages": [2], "suffix": "b"}])
+    monkeypatch.setattr(pdfproc, "page_count", lambda p: 2)  # pypdf を呼ばせない(dry-run)
+    assert cli.main(["expense", "split"]) == 0
+    out = capsys.readouterr().out
+    assert "PDF分割" in out and "DRY-RUN" in out and "multi_a.pdf" in out
 
 
 def test_cli_status_and_process_dispatch(capsys):

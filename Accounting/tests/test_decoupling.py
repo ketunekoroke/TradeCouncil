@@ -8,9 +8,9 @@ from pathlib import Path
 
 CORE = Path(__file__).resolve().parents[1] / "core"
 FORBIDDEN = re.compile(r"^\s*(?:from|import)\s+(Magi|TradeCouncil)\b", re.MULTILINE)
-# core は stdlib + 自前のみ。scripts 層の依存(yaml/PIL)や shared を core から import しない。
+# core は stdlib + 自前のみ。scripts 層の依存(yaml/PIL/pypdf)や shared を core から import しない。
 FORBIDDEN_DEP = re.compile(
-    r"^\s*(?:from|import)\s+(yaml|PIL|Pillow|requests|httpx|pydantic|numpy|pandas|shared)\b",
+    r"^\s*(?:from|import)\s+(yaml|PIL|Pillow|pypdf|requests|httpx|pydantic|numpy|pandas|shared)\b",
     re.MULTILINE,
 )
 

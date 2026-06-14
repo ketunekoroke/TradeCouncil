@@ -19,22 +19,29 @@ SharePoint をマスタデータとし、Claude Code が手動で回す半自動
    **よく使う費目・税区分**を集計し `var/expense/refdata/expense_usage.json` に保存。`--from/--to` で範囲調整。
 2. **取り込み**: スマホ撮影/PDF を Teams の Expense チャネル(SharePoint 連携)へ投稿 → `expense pull` で
    SharePoint の expense-inbox を `var/expense/raw/` へ取得。
-3. **抽出(Claude)**: `raw/` の各ファイルを Claude が読み、日付・支払先・金額・通貨・内容・(登録番号)・費目
-   ヒント・**画像の切出し枠**を `var/expense/extracted/<ファイル名>.json`(サイドカー)に書く。不明点(外貨レート・
-   費目)は操作者に確認する(外貨レートは継続適用・源泉妥当性を税理士確認のフラグつきで記録)。
-4. **処理**: `expense process` — リネーム(`YYYY-MM-DD_支払先`)・画像トリミング(原本は `_original`)・重複排除
+3. **分割(複数レシートPDF・任意)**: 1つの PDF に複数のレシートが入っている場合のみ、Claude が **分割
+   サイドカー**(`var/expense/split/<ファイル名>.json`: どのページがどのレシートかを `parts:[{pages,suffix}]`
+   で指定。連番分割は `mode:"per_page"`)を書き、`expense split`(既定ドライラン → `--confirm`)で **1ファイル
+   1レシート**に分ける(`pypdf`)。分割後のパートは raw/ に新規ファイルとして置かれ、元 PDF は削除せず
+   `var/expense/split_src/` へ退避(SharePoint inbox にも原本が残る=復元可)。**複数ページ=複数レシートとは
+   限らない**(1レシートが複数ページの場合がある)ため、分割サイドカーが無いファイルは分割しない。ページ番号は
+   1始まりで、範囲外(off-by-one)は実行前に弾く。
+4. **抽出(Claude)**: `raw/`(分割後は各パート)の各ファイルを Claude が読み、日付・支払先・金額・通貨・内容・
+   (登録番号)・費目ヒント・**画像の切出し枠**を `var/expense/extracted/<ファイル名>.json`(サイドカー)に書く。
+   不明点(外貨レート・費目)は操作者に確認する(外貨レートは継続適用・源泉妥当性を税理士確認のフラグつきで記録)。
+5. **処理**: `expense process` — リネーム(`YYYY-MM-DD_支払先`)・画像トリミング(原本は `_original`)・重複排除
    (内容ハッシュ完全一致 / 日付+支払先+金額の近接。重複は `--approve-overwrite` か対話 y/N の承認後に上書き=
    SharePoint 版履歴で復元可。削除はしない)・前期実績ベースの費目/税区分・内外判定・外貨円換算・相関キー付与で
    **経費明細の下書き**(`var/expense/drafts/`)を生成。検証ゲートの指摘(費目未確定・外貨未換算・参加者メモ要 等)を表示。
-5. **保存(マスタ)**: `expense push` — `var/expense/processed/`(リネーム後 + `_original`)を SharePoint の
+6. **保存(マスタ)**: `expense push` — `var/expense/processed/`(リネーム後 + `_original`)を SharePoint の
    expense-master へ反映。`expense csv` で下書きを CSV 出力。`expense status` / `expense drafts` で確認。
-6. **API 登録(電帳法)**: `expense register`(既定ドライランで予定を確認 → `--confirm` で本番送信)。
+7. **API 登録(電帳法)**: `expense register`(既定ドライランで予定を確認 → `--confirm` で本番送信)。
    `POST me/ex_transactions` に証憑画像(`receipt_input`)を同梱し **1コールで登録 + 証憑添付**(CSV 取込は証憑を
    付けられず電帳法非対応のため API 登録を採用)。費目/税区分は前期実績の名前→ID で解決。ゲート error / 費目ID未解決は skip。
    登録成功時に **Teams(OPERATIONS チャネル)へ明細詳細を自動通知**(`scripts/notify.py`・`ac expense notify [--id]` で再送可)。
-7. **inbox 整理**: `expense clean-inbox`(既定ドライラン → `--confirm`)。**登録済みの証憑のみ** SharePoint inbox から
+8. **inbox 整理**: `expense clean-inbox`(既定ドライラン → `--confirm`)。**登録済みの証憑のみ** SharePoint inbox から
    削除(証憑が MF に入った後だけ消す。ごみ箱から復元可)。
-8. **明細台帳(Excel)**: `expense xlsx --push` — ledger から証憑サムネイル + クラウド経費明細番号 + 内容の一覧を
+9. **明細台帳(Excel)**: `expense xlsx --push` — ledger から証憑サムネイル + クラウド経費明細番号 + 内容の一覧を
    xlsx 化し ドキュメント/Expense/ 直下へ。将来はクラウド経費の過去分(`me/ex_transactions` 全件)も同形式で取込。
 
 会計の勘定科目は扱わない(クラウド経費で承認 → 会計登録時に MF がマトリクスで費目→勘定科目へ自動変換)。

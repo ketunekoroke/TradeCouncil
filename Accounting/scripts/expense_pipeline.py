@@ -23,13 +23,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # Accounting/
 
-from core import extract, gate, ingest, oauth, policy, refdata, register  # noqa: E402
-from scripts import imageproc, mf_expense_api, notify, policy_loader  # noqa: E402
+from core import extract, gate, ingest, oauth, pdfsplit, policy, refdata, register  # noqa: E402
+from scripts import imageproc, mf_expense_api, notify, pdfproc, policy_loader  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 RAW, EXTRACTED, PROCESSED, DRAFTS, REFDATA = "raw", "extracted", "processed", "drafts", "refdata"
+SPLIT = "split"  # 分割スペック(Claude が書く分割サイドカー)の置き場
+SPLIT_SRC = "split_src"  # 分割後に退避した元 PDF(削除せず保持=復元可)
 
 
 # --- 置き場所(var/expense・EXPENSE_VAR_DIR で上書き可)----------------------------------
@@ -53,6 +55,10 @@ def usage_path() -> Path:
 
 def sidecar_path(raw_name: str) -> Path:
     return sub(EXTRACTED) / f"{raw_name}.json"
+
+
+def split_spec_path(raw_name: str) -> Path:
+    return sub(SPLIT) / f"{raw_name}.json"
 
 
 # --- 前期実績(usage)----------------------------------------------------------------------
@@ -107,6 +113,81 @@ def run_refdata(
         "from": date_from,
         "to": date_to,
     }
+
+
+# --- 複数レシート PDF の分割(1ファイル1レシート化)-------------------------------------
+
+def split_pdfs(*, confirm: bool = False, page_count_fn=None, split_fn=None) -> dict:
+    """raw/ の複数レシート PDF を分割スペックに従い「1ファイル1レシート」に分ける。
+
+    対象は **分割スペック**(`var/expense/split/<raw>.json`)があるファイルだけ。ページ数からの
+    自動分割はしない(1レシートが複数ページの場合に誤分割しないため)。`confirm=False` は
+    ドライラン(計画のみ)。本番は `confirm=True`。分割後の各パートは raw/ に新規ファイルとして置き、
+    元 PDF は削除せず `var/expense/split_src/` へ退避する(SharePoint inbox にも原本が残る=復元可)。
+    `page_count_fn`/`split_fn` はテスト用に注入できる(無ければ pypdf を使う)。
+    """
+    page_count_fn = page_count_fn or pdfproc.page_count
+    split_fn = split_fn or pdfproc.split_pdf
+    raw_dir = sub(RAW)
+    results: dict = {"split": [], "skipped": [], "errors": [], "dry_run": not confirm}
+    if not raw_dir.is_dir():
+        return results
+
+    for raw in sorted(p for p in raw_dir.glob("*") if p.is_file() and not p.name.startswith(".")):
+        spec_p = split_spec_path(raw.name)
+        if not spec_p.is_file():
+            continue  # 分割対象ではない(通常の単一レシート)
+        if not pdfproc.is_pdf(raw):
+            results["errors"].append({"file": raw.name, "error": "PDF ではありません(分割対象外)"})
+            continue
+        try:
+            plan = pdfsplit.parse_split_sidecar(json.loads(spec_p.read_text(encoding="utf-8")))
+        except (ValueError, OSError) as exc:
+            results["errors"].append({"file": raw.name, "error": f"分割スペック不正: {exc}"})
+            continue
+        try:
+            n_pages = page_count_fn(raw)
+        except Exception as exc:  # pypdf は多様な例外を投げうる
+            results["errors"].append(
+                {"file": raw.name, "error": f"ページ数取得不可: {_err_str(exc)}"}
+            )
+            continue
+        parts = pdfsplit.expand(plan, n_pages)
+        problems = pdfsplit.validate(parts, page_count=n_pages)
+        if problems:  # 範囲外(off-by-one)・空・suffix 重複等は実行前に弾く
+            results["errors"].append({"file": raw.name, "error": "; ".join(problems)})
+            continue
+        jobs = [(raw_dir / pdfsplit.output_name(raw.name, part), part.pages) for part in parts]
+        existing = [out.name for out, _ in jobs if out.exists()]
+        if existing:  # 既に分割済み(再実行)/ 衝突 → 上書きしない(冪等・安全側)
+            results["skipped"].append(
+                {"file": raw.name, "reason": f"出力が既に存在(分割済み?): {', '.join(existing)}"}
+            )
+            continue
+        part_names = [out.name for out, _ in jobs]
+        if not confirm:
+            results["skipped"].append({
+                "file": raw.name, "reason": "dry-run(--confirm で分割)",
+                "pages": n_pages, "parts": part_names,
+                "unused_pages": pdfsplit.unused_pages(parts, n_pages),
+            })
+            continue
+        try:
+            written = split_fn(raw, jobs)
+        except Exception as exc:  # I/O・pypdf
+            results["errors"].append({"file": raw.name, "error": _err_str(exc)})
+            continue
+        archive = sub(SPLIT_SRC)
+        archive.mkdir(parents=True, exist_ok=True)
+        moved = archive / raw.name
+        os.replace(raw, moved)  # 元 PDF は退避(削除しない=復元可)
+        results["split"].append({
+            "file": raw.name,
+            "parts": [Path(p).name for p in written],
+            "archived_to": str(moved),
+        })
+
+    return results
 
 
 # --- 取り込み処理(raw + サイドカー → processed + draft + ledger)--------------------------

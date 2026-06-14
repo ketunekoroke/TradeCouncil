@@ -320,6 +320,25 @@ def _interactive_overwrite_approver():
     return _ask
 
 
+def _print_split_results(results: dict) -> None:
+    mode = "DRY-RUN(分割なし)" if results["dry_run"] else "実分割"
+    print(
+        f"[expense] PDF分割 {mode}: 分割 {len(results['split'])} / "
+        f"skip {len(results['skipped'])} / エラー {len(results['errors'])}"
+    )
+    for s in results["split"]:
+        print(f"  分割: {s['file']} → {', '.join(s['parts'])}(原本は split_src へ退避)")
+    for s in results["skipped"]:
+        extra = ""
+        if s.get("parts"):
+            extra = f" → {', '.join(s['parts'])}"
+            if s.get("unused_pages"):
+                extra += f"(未割当ページ {s['unused_pages']})"
+        print(f"  {s['file']}: {s['reason']}{extra}")
+    for e in results["errors"]:
+        print(f"  error: {e['file']} — {e['error']}", file=sys.stderr)
+
+
 def _print_process_results(results: dict) -> None:
     proc = results["processed"]
     print(
@@ -426,7 +445,16 @@ def cmd_expense(args: argparse.Namespace) -> int:
             print("  抽出待ち(Claude が読んで extracted/<name>.json を生成してください):")
             for name in pending:
                 print(f"    - {name}")
+            print(
+                "  ※ 1つの PDF に複数レシートがある場合は、先に分割サイドカー "
+                "split/<name>.json を書いて `expense split --confirm`(1ファイル1レシート化)。"
+            )
         return 0
+
+    if cmd == "split":
+        results = ep.split_pdfs(confirm=args.confirm)
+        _print_split_results(results)
+        return 0 if not results["errors"] else 1
 
     if cmd == "process":
         approver = None
@@ -532,7 +560,7 @@ def cmd_expense(args: argparse.Namespace) -> int:
 
     print(
         "usage: ac expense "
-        "refdata|pull|process|push|register|clean-inbox|notify|status|drafts|csv|xlsx",
+        "refdata|pull|split|process|push|register|clean-inbox|notify|status|drafts|csv|xlsx",
         file=sys.stderr,
     )
     return 2
@@ -610,6 +638,11 @@ def build_parser() -> argparse.ArgumentParser:
     pe_refdata.add_argument("--from", dest="date_from", help="集計開始日 ISO(既定: 前期7/1)")
     pe_refdata.add_argument("--to", dest="date_to", help="集計終了日 ISO(既定: 前期6/30)")
     exp_sub.add_parser("pull", help="SharePoint の expense-inbox を var/expense/raw へ取得")
+    pe_split = exp_sub.add_parser(
+        "split",
+        help="複数レシート PDF を1ファイル1レシートに分割(サイドカー必須・既定ドライラン)",
+    )
+    pe_split.add_argument("--confirm", action="store_true", help="実分割(未指定はドライラン)")
     pe_proc = exp_sub.add_parser(
         "process", help="raw+サイドカーを処理(リネーム/トリミング/重複/ポリシー下書き)"
     )

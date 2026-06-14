@@ -110,6 +110,8 @@ def test_real_config_file_has_default_endpoints():
     # 経費: 公式 Swagger 確認済の offices 一覧と疎通スコープ(2026-06-14)。
     assert exp.offices_url == "https://expense.moneyforward.com/api/external/v1/offices"
     assert "user_setting:write" in exp.scopes
+    # 経費の redirect は OOB(CLI 向け公式。localhost http は MF 拒否 — BL-AC-019)。
+    assert exp.redirect_uri == "urn:ietf:wg:oauth:2.0:oob"
     # 既定では secret/client_id 未設定なので ready ではない(env は fixture で遮断)。
     assert cfg.ready_products() == []
 

@@ -51,6 +51,15 @@
   **実機 e2e 確認済**: `mf login --product accounting` がリスナで code 自動取得 → token 保存、**`refresh_token`
   発行を確認**(MoneyForward は refresh あり)、spike が保存トークンをブラウザ不要で再利用、強制失効後の
   `mf refresh` が実 refresh グラントで access token を更新(expires_at 更新)。
+- **BL-AC-019(完了 2026-06-14)** — 経費の OAuth ログイン改善。経費は **localhost http を登録できない**
+  (検証済)が、MF が **`urn:ietf:wg:oauth:2.0:oob`(CLI 向け)を公式提供**。config の `products.expense.oauth.redirect_uri`
+  を OOB に更新し、`mf login` の手動経路を **対話ペースト式**へ作り替え(ブラウザ許可 → MF 表示の `code` を貼り付け
+  → 即 `exchange_code`・保存。`--code <CODE>` で非対話・ヘッドレスは EOF で従来 .env+spike 案内にフォールバック)。
+  `.env` 編集・spike 不要に。会計の `--no-listen` でも同じペースト式。`https://localhost` 自動受信は自己署名証明書+
+  ブラウザ警告+依存追加が要るため不採用(zero-dep 方針)。CLI テスト追加(計84緑)。
+  **実機 e2e 確認済**: 経費アプリに OOB を登録 → `mf login --product expense --code <code>` で交換・保存、
+  **経費も `refresh_token` 発行**(expires は約3ヶ月と長寿命)、spike が保存トークンをブラウザ不要で再利用
+  (`/api/external/v1/offices` 件数=1)、強制失効後の `mf refresh` が実 refresh グラントで更新。
 
 ## Backlog(次に着手)
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。

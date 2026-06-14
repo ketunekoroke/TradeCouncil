@@ -7,8 +7,8 @@
   ac mirror                  docs を SharePoint へ一方向ミラー(ADR-0010)
   ac mf config [--product accounting|expense] [--check]
                              MoneyForward API 設定の表示・検証(会計/経費の両方。秘密はマスク。--check は未設定で exit 1)
-  ac mf login --product <accounting|expense> [--no-listen]
-                             認可〜code取得〜token保存を自動化(会計は loopback で code 自動受信。expense は手動)
+  ac mf login --product <accounting|expense> [--no-listen] [--code <CODE>]
+                             認可〜code取得〜token保存(会計=loopback で自動受信 / 経費=OOB で code を貼り付け)
   ac mf refresh --product <accounting|expense>
                              保存トークンを必要に応じて refresh_token で更新
   ac mf token --product <accounting|expense> [--show]
@@ -89,18 +89,48 @@ def _err(exc: Exception) -> str:
     return str(exc)
 
 
-def _mf_login_manual(product: str, pc, url: str, state: str) -> int:
-    """ヘッドレス / expense(HTTPS redirect)向けの手動フロー(URL 表示 → AUTH_CODE → spike)。"""
+def _mf_login_manual(args: argparse.Namespace, pc, url: str, state: str) -> int:
+    """loopback が使えない経路(経費の OOB・--no-listen・ヘッドレス)の対話ペースト式ログイン。
+
+    ブラウザで認可 → MF が表示した(または リダイレクト先 URL の)`code=` を貼り付け → 即交換・保存。
+    `--code` 指定時は対話なし。貼り付けできない環境(ヘッドレス)では従来の .env+spike 手順を案内する。
+    """
+    import webbrowser
+
+    from core import oauth, token_store
+
+    product = args.product
     print(f"[{product}] {pc.label} 認可 URL(ブラウザで開いて許可してください):\n")
     print(url + "\n")
     if not pc.scopes:
         print("warn: scopes が未設定です(config の products.<product>.oauth.scopes を確認)。\n")
-    print(f"state(戻り先 URL の state がこの値と一致するか確認): {state}")
-    print(
-        "許可後にリダイレクト先 URL の `code=` を控え、`.env` の "
-        f"MONEYFORWARD_{product.upper()}_AUTH_CODE に設定 → "
-        f"`python -m scripts.spike_moneyforward --product {product}` でトークン交換・保存。"
-    )
+    print(f"state(表示/戻り先 URL の state がこの値と一致するか確認): {state}")
+    try:
+        webbrowser.open(url)
+    except Exception as exc:  # ヘッドレス等では開けないことがある
+        print(f"(ブラウザを自動で開けませんでした: {exc}。上の URL を手で開いてください)")
+
+    code = getattr(args, "code", None)
+    if not code:
+        try:
+            code = input("\n認可後に表示された(またはリダイレクト先 URL の)code= を貼り付け: ").strip()
+        except (EOFError, OSError):  # ヘッドレス / stdin なし
+            code = ""
+    if not code:
+        print(
+            "\ncode の入力がありませんでした。`.env` の "
+            f"MONEYFORWARD_{product.upper()}_AUTH_CODE に設定 → "
+            f"`python -m scripts.spike_moneyforward --product {product}` でも交換・保存できます。"
+        )
+        return 0
+    try:
+        bundle = oauth.exchange_code(pc, code)
+    except (urllib.error.URLError, ValueError) as exc:
+        print(f"error: トークン交換に失敗: {_err(exc)}", file=sys.stderr)
+        return 1
+    token_store.save(product, bundle)
+    print(f"\n[{product}] ログイン完了。トークンを保存しました(秘密はマスク):")
+    _print_masked(bundle.masked())
     return 0
 
 
@@ -199,9 +229,9 @@ def cmd_mf(args: argparse.Namespace) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 1
 
-        # 会計(loopback http)はリスナで自動受信。expense / --no-listen は手動フロー。
+        # 会計(loopback http)はリスナで自動受信。経費(OOB)/ --no-listen は対話ペースト式。
         if args.no_listen or not is_loopback_redirect(pc.redirect_uri):
-            return _mf_login_manual(args.product, pc, url, state)
+            return _mf_login_manual(args, pc, url, state)
 
         print(f"[{args.product}] {pc.label} 認可 URL(自動で開きます。開かない場合は下記を貼り付け):\n")
         print(url + "\n")
@@ -218,7 +248,7 @@ def cmd_mf(args: argparse.Namespace) -> int:
             cb = capture_code(pc.redirect_uri, state, on_ready=_open_browser)
         except ListenerUnavailable as exc:
             print(f"warn: ローカルリスナを起動できません({exc})。手動フローに切り替えます。\n", file=sys.stderr)
-            return _mf_login_manual(args.product, pc, url, state)
+            return _mf_login_manual(args, pc, url, state)
         if cb.error or not cb.code:
             print(f"error: 認可に失敗しました: {cb.error_description or cb.error or '不明'}", file=sys.stderr)
             return 1
@@ -312,7 +342,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--product", choices=["accounting", "expense"], required=True, help="対象プロダクト(必須)"
     )
     pm_login.add_argument(
-        "--no-listen", action="store_true", help="loopback リスナを使わず手動フロー(URL 表示のみ)"
+        "--no-listen", action="store_true", help="loopback リスナを使わず対話ペースト式(経費/ヘッドレス)"
+    )
+    pm_login.add_argument(
+        "--code", help="認可後の code を直接渡す(対話入力を省略。経費の OOB / ヘッドレス向け)"
     )
     pm_refresh = mf_sub.add_parser("refresh", help="保存トークンを必要に応じて更新(refresh_token)")
     pm_refresh.add_argument(

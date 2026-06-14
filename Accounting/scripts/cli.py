@@ -7,10 +7,16 @@
   ac mirror                  docs を SharePoint へ一方向ミラー(ADR-0010)
   ac mf config [--product accounting|expense] [--check]
                              MoneyForward API 設定の表示・検証(会計/経費の両方。秘密はマスク。--check は未設定で exit 1)
+  ac mf login --product <accounting|expense> [--no-listen]
+                             認可〜code取得〜token保存を自動化(会計は loopback で code 自動受信。expense は手動)
+  ac mf refresh --product <accounting|expense>
+                             保存トークンを必要に応じて refresh_token で更新
+  ac mf token --product <accounting|expense> [--show]
+                             保存トークンの状態表示(秘密はマスク)
   ac mf authorize --product <accounting|expense> [--no-open]
-                             認可 URL(client_id 入り)を生成してブラウザを開く(認可コード取得)
+                             認可 URL を生成してブラウザを開く(手動で code を取得。expense/ヘッドレス向け)
 
-注: 経費登録・API 疎通・検証ゲートは Phase 1([実装予定])。spike_moneyforward.py / check_compliance.py 参照。
+注: 経費登録・検証ゲートは Phase 1([実装予定])。spike_moneyforward.py / check_compliance.py 参照。
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import urllib.error
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]   # Accounting/
@@ -64,6 +71,37 @@ def cmd_sync(_args: argparse.Namespace) -> int:
 
 def cmd_mirror(_args: argparse.Namespace) -> int:
     return _sharepoint("mirror")
+
+
+def _print_masked(masked: dict) -> None:
+    """マスク済みサマリを整形表示する(秘密の値は出さない)。"""
+    for key, value in masked.items():
+        print(f"  {key:14} : {value}")
+
+
+def _err(exc: Exception) -> str:
+    """例外を人間向けの1行(+詳細)に整形する。"""
+    if isinstance(exc, urllib.error.HTTPError):
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        return f"HTTP {exc.code} {exc.reason}\n{detail}"
+    if isinstance(exc, urllib.error.URLError):
+        return f"接続失敗: {exc.reason}"
+    return str(exc)
+
+
+def _mf_login_manual(product: str, pc, url: str, state: str) -> int:
+    """ヘッドレス / expense(HTTPS redirect)向けの手動フロー(URL 表示 → AUTH_CODE → spike)。"""
+    print(f"[{product}] {pc.label} 認可 URL(ブラウザで開いて許可してください):\n")
+    print(url + "\n")
+    if not pc.scopes:
+        print("warn: scopes が未設定です(config の products.<product>.oauth.scopes を確認)。\n")
+    print(f"state(戻り先 URL の state がこの値と一致するか確認): {state}")
+    print(
+        "許可後にリダイレクト先 URL の `code=` を控え、`.env` の "
+        f"MONEYFORWARD_{product.upper()}_AUTH_CODE に設定 → "
+        f"`python -m scripts.spike_moneyforward --product {product}` でトークン交換・保存。"
+    )
+    return 0
 
 
 def cmd_mf(args: argparse.Namespace) -> int:
@@ -134,8 +172,105 @@ def cmd_mf(args: argparse.Namespace) -> int:
                 print(f"\n(ブラウザを自動で開けませんでした: {exc}。上の URL を手で開いてください)")
         return 0
 
-    print("usage: ac mf config [--product accounting|expense] [--check] | ac mf authorize --product <..>",
-          file=sys.stderr)
+    if args.mf_command == "login":
+        import secrets
+        import webbrowser
+
+        from core import moneyforward as mf
+        from core import oauth, token_store
+        from scripts.oauth_listener import (
+            ListenerUnavailable,
+            capture_code,
+            is_loopback_redirect,
+        )
+
+        pc = mf.load_config().get(args.product)
+        if not pc.is_ready():
+            print(
+                f"[{args.product}] 接続設定が未完了です(`mf config --product {args.product}` で確認)。"
+                f" 未設定: {', '.join(pc.missing_required())}",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            state = secrets.token_urlsafe(16)
+            url = mf.build_authorize_url(pc, state=state)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+        # 会計(loopback http)はリスナで自動受信。expense / --no-listen は手動フロー。
+        if args.no_listen or not is_loopback_redirect(pc.redirect_uri):
+            return _mf_login_manual(args.product, pc, url, state)
+
+        print(f"[{args.product}] {pc.label} 認可 URL(自動で開きます。開かない場合は下記を貼り付け):\n")
+        print(url + "\n")
+        print(f"state(CSRF 確認用。戻り先 URL の state がこの値と一致するか確認): {state}")
+        print("ブラウザで許可してください(loopback で code を自動受信します)…")
+
+        def _open_browser() -> None:
+            try:
+                webbrowser.open(url)
+            except Exception as exc:  # ヘッドレス等では開けないことがある
+                print(f"(ブラウザを自動で開けませんでした: {exc}。上の URL を手で開いてください)")
+
+        try:
+            cb = capture_code(pc.redirect_uri, state, on_ready=_open_browser)
+        except ListenerUnavailable as exc:
+            print(f"warn: ローカルリスナを起動できません({exc})。手動フローに切り替えます。\n", file=sys.stderr)
+            return _mf_login_manual(args.product, pc, url, state)
+        if cb.error or not cb.code:
+            print(f"error: 認可に失敗しました: {cb.error_description or cb.error or '不明'}", file=sys.stderr)
+            return 1
+        try:
+            bundle = oauth.exchange_code(pc, cb.code)
+        except (urllib.error.URLError, ValueError) as exc:
+            print(f"error: トークン交換に失敗: {_err(exc)}", file=sys.stderr)
+            return 1
+        token_store.save(args.product, bundle)
+        print(f"[{args.product}] ログイン完了。トークンを保存しました(秘密はマスク):")
+        _print_masked(bundle.masked())
+        return 0
+
+    if args.mf_command == "refresh":
+        from core import moneyforward as mf
+        from core import oauth, token_store
+
+        pc = mf.load_config().get(args.product)
+        try:
+            oauth.get_access_token(pc)  # 失効していれば refresh して保存
+        except oauth.ReloginRequired as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except (urllib.error.URLError, ValueError) as exc:
+            print(f"error: refresh に失敗: {_err(exc)}", file=sys.stderr)
+            return 1
+        bundle = token_store.load(args.product)
+        print(f"[{args.product}] アクセストークン有効(必要なら更新済み):")
+        if bundle is not None:
+            _print_masked(bundle.masked())
+        return 0
+
+    if args.mf_command == "token":
+        from core import token_store
+
+        bundle = token_store.load(args.product)
+        if bundle is None:
+            print(
+                f"[{args.product}] 保存トークンなし。"
+                f"`python -m scripts.cli mf login --product {args.product}` を実行してください。"
+            )
+            return 0
+        print(f"[{args.product}] 保存トークン(秘密はマスク):")
+        _print_masked(bundle.masked())
+        if args.show:
+            print(f"  path           : {token_store.token_path(args.product)}")
+        return 0
+
+    print(
+        "usage: ac mf config|login|refresh|token|authorize --product <accounting|expense> [...]",
+        file=sys.stderr,
+    )
     return 2
 
 
@@ -170,7 +305,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--check", action="store_true",
         help="未設定なら exit 1(--product 指定時はそのプロダクト、未指定時はいずれか1つ以上 ready)",
     )
-    pm_auth = mf_sub.add_parser("authorize", help="認可 URL を生成してブラウザを開く(認可コード取得)")
+    pm_login = mf_sub.add_parser(
+        "login", help="認可〜code取得〜token保存を自動化(会計は loopback 自動・expense は手動)"
+    )
+    pm_login.add_argument(
+        "--product", choices=["accounting", "expense"], required=True, help="対象プロダクト(必須)"
+    )
+    pm_login.add_argument(
+        "--no-listen", action="store_true", help="loopback リスナを使わず手動フロー(URL 表示のみ)"
+    )
+    pm_refresh = mf_sub.add_parser("refresh", help="保存トークンを必要に応じて更新(refresh_token)")
+    pm_refresh.add_argument(
+        "--product", choices=["accounting", "expense"], required=True, help="対象プロダクト(必須)"
+    )
+    pm_token = mf_sub.add_parser("token", help="保存トークンの状態表示(秘密はマスク)")
+    pm_token.add_argument(
+        "--product", choices=["accounting", "expense"], required=True, help="対象プロダクト(必須)"
+    )
+    pm_token.add_argument("--show", action="store_true", help="保存先パスも表示(値はマスクのまま)")
+    pm_auth = mf_sub.add_parser("authorize", help="認可 URL を生成してブラウザを開く(手動 code 取得)")
     pm_auth.add_argument(
         "--product", choices=["accounting", "expense"], required=True, help="対象プロダクト(必須)"
     )

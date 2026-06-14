@@ -100,6 +100,8 @@ $RECYCLE.BIN/
 *.pem
 *.key
 secrets/
+# MoneyForward の取得済みトークン(上の var/ でも除外されるが明示。MONEYFORWARD_TOKEN_DIR で変更可)
+Accounting/var/moneyforward/
 
 # ------------------------------------------------------------------------------
 # ログ・一時ファイル

@@ -41,12 +41,20 @@
   getJournalById/試算表 PL・BS/推移表 PL・BS/en_ja_dictionary、書込4: postJournals/putJournals/postTransactions/
   postTradePartners。削除系なし)。**自作 `core/moneyforward.py`(OAuth 疎通)とは別の連携経路** — 採用方針は
   Icebox BL-AC-106 で検討。GA 正式 URL は ot10.html で要確認(現状 beta)。書込ツールは明示確認を経てのみ実行。
+- **BL-AC-016(完了 2026-06-14。実 API e2e 確認済)** — 認可コードフローの補助。
+  共通 OAuth ロジックを `core/oauth.py`(zero-dep)へ集約(build_token_request 移設・build_refresh_request・
+  parse_token_response・parse_callback・TokenBundle・get_access_token)。`core/token_store.py` で access/refresh を
+  gitignore の `var/moneyforward/`(`MONEYFORWARD_TOKEN_DIR` で可変)に保存。`scripts/oauth_listener.py` が
+  **会計の loopback(127.0.0.1:8765)で `code` を単回自動受信**(state を hmac 照合・無ログ)。CLI に
+  `mf login`(会計=自動・経費/--no-listen=手動)/`mf refresh`/`mf token` を追加。spike は保存トークンを再利用し
+  失効時 refresh で自動更新。経費は redirect が HTTPS 限定のため手動継続。ネットワーク非依存テスト39件追加(計81緑)。
+  **実機 e2e 確認済**: `mf login --product accounting` がリスナで code 自動取得 → token 保存、**`refresh_token`
+  発行を確認**(MoneyForward は refresh あり)、spike が保存トークンをブラウザ不要で再利用、強制失効後の
+  `mf refresh` が実 refresh グラントで access token を更新(expires_at 更新)。
 
 ## Backlog(次に着手)
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
   pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。
-- **BL-AC-016** — 認可コードフローの補助(ローカルで `redirect_uri` を受けて `code` を取得する簡易リスナ、
-  リフレッシュトークン更新)。現状は手動で `MONEYFORWARD_<PRODUCT>_AUTH_CODE` を設定する運用。
 - **BL-AC-012** — エージェント本体 `core/` の最小実装(取り込み → 抽出 → 検証 → 登録の骨格)。
 - **BL-AC-013** — Teams 確認カード(NG/低信頼項目の提示 → 承認 → 確定値返却)。通知は Teams(ADR-0002 系)。
 

@@ -16,3 +16,4 @@
 | TC-AC11 | 疎通スパイクの純粋ロジック単体検証(token リクエスト組立=認可コード grant・basic/post 認証・auth_code 欠落で SystemExit、offices URL 解決、offices 件数抽出=応答形状の差を吸収) | `tests/test_spike_moneyforward.py`(ネットワーク・実 creds 不要) | P1 | REQ-EX01 |
 | TC-AC09 | MoneyForward 設定の解決(`MONEYFORWARD_<PRODUCT>_<FIELD>` env → config)・会計/経費の独立性・プレースホルダ除外・秘密マスク | `tests/test_moneyforward_config.py` | P0 | REQ-EX06 |
 | TC-AC10 | `ac mf config [--product] --check` が未設定で exit 1、いずれか系統 ready で exit 0。両系統を表示 | `tests/test_moneyforward_config.py`(CLI 経由) | P1 | REQ-EX06 |
+| TC-AC12 | OAuth 補助の純粋ロジック(token/refresh リクエスト組立・token 応答解析・コールバック解析・TokenBundle 失効/マスク・get_access_token の再利用/refresh/再ログイン分岐)とトークンストア(往復・隔離・破損→None・クリア)と CLI(`mf login --no-listen`/`token`/`refresh` が socket bind せず秘密を漏らさない) | `tests/test_oauth.py` / `test_token_store.py` / `test_oauth_listener.py` / `test_cli_mf.py`(ネットワーク・socket・実 creds 不要) | P0 | REQ-EX01, REQ-EX06 |

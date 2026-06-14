@@ -54,6 +54,7 @@ ingest      extract      gate               (人間)        register        reco
 |---|---|---|
 | 非秘密(OAuth/API の URL・scopes・client_id・enabled) | [`config/moneyforward.config.json`](../config/moneyforward.config.json) の `products.<product>` | `products.expense.oauth.token_url` |
 | 秘密(client_secret)・上書き | ルート共有 `.env`(`MONEYFORWARD_<PRODUCT>_*`) | `MONEYFORWARD_EXPENSE_CLIENT_SECRET` |
+| 取得済みトークン(access/refresh) | **機械管理**の gitignore ストア `var/moneyforward/`(`MONEYFORWARD_TOKEN_DIR` で変更可)。手で置かない | `var/moneyforward/moneyforward.accounting.json` |
 
 - ローダ: [`core/moneyforward.py`](../core/moneyforward.py) の `load_config()` → `MoneyForwardConfig`
   (`.get("accounting")` / `.get("expense")` で `ProductConfig`)。各フィールドの解決順は
@@ -62,14 +63,21 @@ ingest      extract      gate               (人間)        register        reco
   `.claude/settings.local.json`。zero-dep)。
 - 確認: `python -m scripts.cli mf config [--product accounting|expense]`(秘密はマスク表示)。
   `--check` で必須未設定なら exit 1(`--product` 未指定時はいずれか1系統が ready なら 0。pre-flight / CI 用)。
-- 疎通確認: `scripts/spike_moneyforward.py --product <accounting|expense>`(設定を使い OAuth 認可コードフロー →
-  offices。最初に offices を開く。手動実行・実 creds 必要)。
+- 認可〜トークン取得: `python -m scripts.cli mf login --product <accounting|expense>`。**会計はローカル loopback
+  リスナ**(`http://localhost:8765/callback`)で `code` を自動受信 → token 交換 → `var/moneyforward/` に保存。
+  **経費は redirect が HTTPS 限定**のため手動(URL 表示 → `MONEYFORWARD_EXPENSE_AUTH_CODE` → spike/login)。
+  取得済みトークンは `mf token` で確認、`mf refresh`(または失効時に自動)で `refresh_token` 更新(BL-AC-016)。
+- 疎通確認: `scripts/spike_moneyforward.py --product <accounting|expense>`(保存トークンがあれば再利用し OAuth →
+  offices。無ければ `MONEYFORWARD_<PRODUCT>_AUTH_CODE` で交換。手動実行・実 creds 必要)。
 - ドメイン別プレフィックス `MONEYFORWARD_<PRODUCT>_*` は接続先で名付ける(プロジェクト名を使わない。
   `BYBIT_*` と同じ作法 — ADR-0011)。取得手順は [docs/setup/moneyforward-api-setup.md](setup/moneyforward-api-setup.md)。
 
 ## セキュリティ
 
 - 秘匿情報(Client Secret / トークン)は環境変数(ルート共有 `.env`)から読む。コード・コミット・ログに残さない。
+- **取得済みトークン**は gitignore の `var/moneyforward/`(POSIX は 0600。Windows は ACL 依存)に機械管理で保存し、
+  値はログ・コミットに出さない(`mf token` 等は常にマスク)。loopback リスナは `127.0.0.1` のみ・単回・`state` を
+  `hmac.compare_digest` で検証(CSRF)・`code` はメモリのみで即交換。
 - 証憑の中身(口座番号・カード番号)をログに残さない。
 - 海外アクセス経路の保護(VPN/IP 制限)。認証情報の入力はエージェントにさせない。
 

@@ -30,9 +30,16 @@
         "authorize_url": "https://expense.moneyforward.com/oauth/authorize",
         "token_url": "https://expense.moneyforward.com/oauth/token",
         "redirect_uri": "https://expense.moneyforward.com/api/oauth2-redirect.html",
-        "scopes": []
+        "scopes": [
+          "user_setting:write",
+          "transaction:write",
+          "public_resource:read"
+        ]
       },
-      "api": { "base": "https://expense.moneyforward.com/api" }
+      "api": {
+        "base": "https://expense.moneyforward.com/api",
+        "offices_url": "https://expense.moneyforward.com/api/external/v1/offices"
+      }
     }
   },
   "_notes": [
@@ -43,6 +50,10 @@
     "authorize_url/token_url は公式の既定値を記入済み。scopes は使う API のリファレンス/Swagger で確認して追記。",
     "会計の api.offices_url = 認可サーバ v2 の /v2/tenant(疎通確認の呼び先。2026-06-14 実機検証済)。",
     "  /v2/tenant は scope mfc/admin/tenant.read が必須・応答は {tenant_code, tenant_name} の単一オブジェクト。",
+    "経費の api.offices_url = /api/external/v1/offices(所属事業者一覧。必須 scope user_setting:write)。",
+    "  値は公式 Swagger https://expense.moneyforward.com/api/index.json(/api/index.html の spec)から確認(2026-06-14)。",
+    "  経費スコープ全6: office_setting:write / user_setting:write / transaction:write / report:write /",
+    "  account:write / public_resource:read。既定は最小権限(疎通=user_setting:write・経費登録=transaction:write 等)。",
     "手順: docs/setup/moneyforward-api-setup.md"
   ]
 }

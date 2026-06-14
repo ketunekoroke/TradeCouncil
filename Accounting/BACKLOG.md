@@ -27,16 +27,14 @@
   (`{tenant_code, tenant_name}`)を取得。`/v2/tenant` は scope **`mfc/admin/tenant.read`** が必須(会計ドメインの
   `mfc/accounting/*` とは別の admin 名前空間)。config に offices_url・scope を記入済(`api.offices_url`)。
   **判明(開発者サイト確認)**: 会計には「事業者一覧」エンドポイントは無い。OAuth トークンが事業者(tenant)に
-  紐づくため、事業者の取得は `/v2/tenant` が正(= 会計側の疎通はこれで完結)。残: 経費(expense)系統 → **BL-AC-017**。
+  紐づくため、事業者の取得は `/v2/tenant` が正(= 会計側の疎通はこれで完結)。
+- **BL-AC-017(完了 2026-06-14)** — クラウド経費(expense)の **実 API 疎通を確認**。経費の開発者向けアプリで
+  client_id/secret を登録 → OAuth 認可コードフロー → token 交換成功 → `GET /api/external/v1/offices` が
+  **所属事業者一覧(件数=1)** を返すことを実機検証。接続情報は公式 Swagger
+  (`https://expense.moneyforward.com/api/index.json`)から確認: 必須 scope `user_setting:write`、全6スコープ。
+  config の `products.expense` に offices_url・最小スコープを記入済。会計の単一 tenant と異なり offices は**リスト**。
 
 ## Backlog(次に着手)
-
-- **BL-AC-017** — クラウド経費(expense)の実エンドポイント確定と疎通: 経費の開発者向けアプリで
-  client_id/secret を登録 → 疎通。offices 一覧候補は `GET https://expense.moneyforward.com/api/external/v1/offices`
-  (所属組織の一覧。**Swagger https://expense.moneyforward.com/api/index.html で要確認**)。経費はユーザーが複数組織に
-  所属しうるため一覧が存在する(会計と異なる)。**archive された expense-api-doc / api-doc リポジトリは使わない**
-  (docs/caveats.md)。offices URL は config の `products.expense.api.offices_url`(または env
-  `MONEYFORWARD_EXPENSE_OFFICES_URL`)で指定。
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
   pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。
 - **BL-AC-016** — 認可コードフローの補助(ローカルで `redirect_uri` を受けて `code` を取得する簡易リスナ、

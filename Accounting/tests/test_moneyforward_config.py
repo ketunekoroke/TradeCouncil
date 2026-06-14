@@ -101,11 +101,15 @@ def test_ready_when_all_required_set(tmp_path, monkeypatch):
 def test_real_config_file_has_default_endpoints():
     cfg = mf.load_config()  # 実ファイル(config/moneyforward.config.json)
     acc = cfg.get("accounting")
+    exp = cfg.get("expense")
     assert acc.token_url == "https://api.biz.moneyforward.com/token"
-    assert cfg.get("expense").token_url == "https://expense.moneyforward.com/oauth/token"
-    # 実機検証済の疎通確認エンドポイントと必須スコープ(2026-06-14)。
+    assert exp.token_url == "https://expense.moneyforward.com/oauth/token"
+    # 会計: 実機検証済の疎通確認エンドポイントと必須スコープ(2026-06-14)。
     assert acc.offices_url == "https://api.biz.moneyforward.com/v2/tenant"
     assert "mfc/admin/tenant.read" in acc.scopes
+    # 経費: 公式 Swagger 確認済の offices 一覧と疎通スコープ(2026-06-14)。
+    assert exp.offices_url == "https://expense.moneyforward.com/api/external/v1/offices"
+    assert "user_setting:write" in exp.scopes
     # 既定では secret/client_id 未設定なので ready ではない(env は fixture で遮断)。
     assert cfg.ready_products() == []
 

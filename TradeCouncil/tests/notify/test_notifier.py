@@ -294,8 +294,9 @@ def test_get_notifier_builds_channel_urls_from_env(
     # load_config() 内の load_dotenv が実 .env から URL を再注入しないよう無効化し、
     # そのうえで実環境の URL を遮断してテスト値だけを注入する(実 .env の内容に非依存)
     monkeypatch.setattr(config_mod, "load_dotenv", lambda *a, **k: None)
+    # プロジェクト別名(TEAMS_TC_* 等)も含めて遮断する(実 .env からの漏れ込み防止)
     for key in list(__import__("os").environ):
-        if key.startswith(("TEAMS_WORKFLOW_URL", "DISCORD_WEBHOOK_URL")):
+        if key.startswith(("TEAMS_", "DISCORD_")):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("TEAMS_WORKFLOW_URL", DUMMY_URL)
     monkeypatch.setenv("TEAMS_WORKFLOW_URL_ALERTS", ALERTS_URL)

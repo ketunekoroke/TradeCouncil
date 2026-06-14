@@ -1,0 +1,59 @@
+# ==============================================================================
+# TradeCouncil 技術設定(system.yaml)
+#
+# ここに書けるのは「技術設定」のみ。運用ポリシー(リスク上限・レバレッジ・
+# ゲート基準など決裁事項)は config/policies/ のポリシーレジストリで管理し、
+# このファイルに書いてはならない(不変条項5: No Policy, No Trade)。
+# ==============================================================================
+
+db:
+  # プロジェクトルートからの相対パス
+  path: var/tradecouncil.db
+
+runtime:
+  kill_flag: var/run/KILL
+  log_dir: var/logs
+  heartbeat_interval_sec: 30
+  watchdog_stale_sec: 120
+  log_format: plain        # plain(人間可読)| json(CloudWatch Logs 取り込み用。AWS では json — ADR-0006)
+  log_level: info
+
+paper:
+  # ペーパー約定モデル(執行シミュレーションの技術パラメータ)
+  fee_bps: 10          # 手数料 0.10%
+  slippage_bps: 5      # スリッページ 0.05%
+  initial_balance_jpy: 1000000   # ペーパー口座の初期残高(仮想資金)
+
+feed:
+  # ペーパーBOT用価格フィード: random_walk(ローカルペーパー)| bybit(実データ — ADR-0008)
+  # ※ broker=bybit_testnet の BOT は feed.bybit を使う(build_runner が broker で分岐)
+  type: random_walk
+  random_walk:
+    start_price: 10000000   # BTC/JPY 想定の開始価格
+    drift_bps_per_bar: 0
+    vol_bps_per_bar: 20     # 1バーあたり標準偏差 0.2%
+    bar_interval_sec: 60
+    seed: null              # null = 起動毎にランダム / テストでは固定する
+  bybit:
+    environment: testnet    # testnet(執行と同一環境・既定)| mainnet(公開データのみ。testnet 価格が歪むとき)
+    bar_interval_sec: 60
+    poll_sec: 5.0           # 新バー確定待ちのポーリング間隔
+
+fx:
+  # JPY 換算レート(ADR-0008)。実勢より円安側の保守値 = 損失・エクスポージャーを
+  # 過大評価する安全側。四半期ごとに実勢と照らして見直すこと(2026-06 実勢 ~150 前後)
+  usdjpy_rate: 165
+
+notify:
+  # 通知先 URL は .env から読む。ここに書かない。env 名はプロジェクト別プレフィックス付き(ADR-0011):
+  #   TEAMS_<env_prefix>_WORKFLOW_URL[_<チャネル名大文字>](例 TEAMS_TC_WORKFLOW_URL_OPS)。
+  #   未設定チャネルは TEAMS_<env_prefix>_WORKFLOW_URL(default)へフォールバック(ADR-0003)。
+  #   無印の TEAMS_WORKFLOW_URL[...] も後方互換で読む。
+  backend: teams            # teams(Power Automate Workflows + Adaptive Card)| discord
+  env_prefix: TC            # 通知 env 名のスコープ(TradeCouncil)。SharePoint の env_prefix と対応
+  min_severity: info        # info | warning | critical
+  routing:                  # severity → チャネル名(未記載の severity は default URL へ)
+    info: ops
+    warning: alerts
+    critical: alerts
+  # governance / reports チャネルは routing に載せず、発火側が channel= で明示指定する

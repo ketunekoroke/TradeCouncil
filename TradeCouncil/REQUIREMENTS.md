@@ -1,0 +1,109 @@
+# 要件一覧(Requirements)— TradeCouncil(自動売買)
+
+TradeCouncil 固有の要件を ID 付きで棚卸しする管理表。**正式仕様の一次資料は
+[docs/01_要件定義書.md](docs/01_要件定義書.md)**(FR-x はそこからの引き継ぎ)。
+実装は [FEATURES.md](FEATURES.md)、検証は [TESTCASES.md](TESTCASES.md) を参照。
+機能を追加・変更したら、本ファイル → FEATURES → TESTCASES を併せて更新する。
+
+シナリオ・人格・LLMブリッジの汎用基盤は別プロジェクトが管理する(モノレポ再編 — ADR-0011):
+- シナリオ・人格(SC/DL/DR/BR/PT/PE): [../Magi/REQUIREMENTS.md](../Magi/REQUIREMENTS.md)
+- LLMブリッジ・ファイル入力・SharePoint・非機能(LB/FI/SP/NF/SH): [../shared/REQUIREMENTS.md](../shared/REQUIREMENTS.md)
+- モノレポ全体: [../REQUIREMENTS.md](../REQUIREMENTS.md)
+
+- 優先度: **必須** / **推奨** / **任意**
+- 状態: **実装済**(Phase 0)/ **Phase N**(将来)/ **仕様**(プロトコルとして定義・AI が手動実行)
+
+---
+
+## G. ガバナンス(FR-10 — 本フレームワークの中核)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-G01 | ポリシーレジストリ: 全運用ルールをバージョン管理し、active のみ読み込む(FR-10.1) | 必須 | 実装済 |
+| REQ-G02 | 決裁フロー: 提案→審議→決裁(owner のみ)→適用→監査ログ。決裁レコードなしの本番反映経路を持たない(FR-10.2) | 必須 | 実装済 |
+| REQ-G03 | 同期意思決定会議: ペルソナ審議 + 利用者の決裁宣言で決裁レコード+ポリシーが生成される(FR-10.3) | 必須 | 仕様(scenarios/council.md) |
+| REQ-G04 | 委任ルール: P-01 で定義した範囲のみ decision_gate が自動適用(初期値: 委任なし)。P-01 自体の変更は常に決裁事項(FR-10.4) | 必須 | 実装済 |
+| REQ-G05 | 不変条項: 決裁権・LLM非執行・監査ログ・キルスイッチ・fail-closed は議題にできない(FR-10.5) | 必須 | 実装済(gate reject + hooks) |
+| REQ-G06 | 見直しサイクル: review_after 到来で会議へ再上程(FR-10.6) | 推奨 | 一部(policy list で確認。自動上程は Phase 4) |
+| REQ-G07 | 決裁履歴は append-only(ロールバック = 旧値の再決裁) | 必須 | 実装済 |
+
+## R. リスク管理(FR-5)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-R01 | fail-closed: ★P-01〜P-04 が active でない領域では発注拒否。ポリシーキー欠落でも拒否 | 必須 | 実装済 |
+| REQ-R02 | 全注文が risk_guard を通る(BOT→取引所の直接経路なし。型レベルで遮断) | 必須 | 実装済 |
+| REQ-R03 | 1取引/日次/週次の損失上限、総エクスポージャー、ポジション数上限(FR-5.1〜5.4) | 必須 | 実装済 |
+| REQ-R04 | サーキットブレーカ: 価格急変・スプレッド異常・データ鮮度切れ(FR-5.5) | 必須 | 実装済 |
+| REQ-R05 | キルスイッチ: コマンド/フラグファイルから全BOT即時停止。解除は人間専用(FR-5.6) | 必須 | 実装済 |
+| REQ-R06 | 資産クラス別レバレッジ上限 + 口座実効レバレッジ上限(FR-5.8) | 必須 | 実装済 |
+| REQ-R07 | 証拠金監視・オーバーナイト規則(FR-5.9〜5.10) | 必須 | Phase 6(信用・先物導入時) |
+| REQ-R08 | リスクモジュールの単体テスト カバレッジ90%以上 | 必須 | 実装済(92%) |
+
+## E. 執行・記録(FR-4 / FR-6)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-E01 | すべての発注に decision_id(根拠へ遡及可能。FR-4.4) | 必須 | 実装済 |
+| REQ-E02 | 注文の冪等性(二重発注防止)、ペーパーモード(FR-4.2) | 必須 | 実装済 |
+| REQ-E03 | 再起動時のポジション復元・取引所との突合(FR-4.2) | 必須 | 実装済(reconcile) |
+| REQ-E04 | 全注文・約定・拒否・インシデントを根拠付きでDB保存(FR-6.1) | 必須 | 実装済 |
+| REQ-E05 | KPI集計と根拠連鎖の機械検証 | 必須 | 実装済(最小版) |
+| REQ-E06 | 週次レビュー自動化・悪BOT状態遷移(FR-6.2〜6.5) | 必須 | Phase 4 |
+
+## M. マルチアセット・ホライズン(FR-8 / FR-9)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-M01 | 統一インストゥルメントモデル(資産クラス非依存IF。FR-8.1) | 必須 | 実装済 |
+| REQ-M02 | ブローカーアダプタ共通IF(FR-8.2)。実装は paper(模擬約定)+ bybit_testnet(実接続・模擬資金 — ADR-0008。mainnet 発注経路なし) | 必須 | 実装済 |
+| REQ-M06 | JPY 以外の instrument 通貨は保守的固定レート(fx.usdjpy_rate ≥ 1)で JPY 換算しリスクチェックする。未設定・未対応通貨は起動拒否(fail-closed)。DB の一次記録は instrument 通貨建てを維持(ADR-0008) | 必須 | 実装済 |
+| REQ-M03 | セッションカレンダー(FR-8.3)。未知カレンダーは閉場扱い | 必須 | 最小実装(24/7のみ) |
+| REQ-M04 | マルチ通貨・円建て統合評価(FR-8.4) | 必須 | Phase 6 |
+| REQ-M05 | バー駆動/スケジュール駆動の2系統・スリーブ配分(FR-9) | 必須 | バー駆動のみ実装済 |
+
+## D. データ収集・ニュース(FR-1 / FR-2)/ 会議自動化(FR-3)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-D01 | 市場データ収集(WS・実勢価格) | 必須 | 一部実装済(Bybit REST kline/ticker — ADR-0008。実データ取得を実測確認済。WS・market_collector は Phase 1) |
+| REQ-D02 | ニュース収集・3段フィルタ・イベントシグナル | 必須 | Phase 2 |
+| REQ-D03 | 戦略会議の API 自動実行(council_runner・決議JSON) | 必須 | Phase 3 |
+
+## O. 監視・運用(FR-7)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-O01 | Teams/Discord 通知(backend 切替・Teams は Adaptive Card で構造化可視化・専用 Team の複数チャネルへ severity/用途別ルーティング・URL 未設定時はフォールバック — ADR-0002/0003) | 必須 | 実装済 |
+| REQ-O02 | heartbeat 死活監視 + 途絶検知 | 必須 | 実装済(自動再起動は Phase 1/VPS) |
+| REQ-O03 | LLM APIコストメーター(FR-7.3) | 必須 | Phase 2(テーブル定義のみ) |
+| REQ-O04 | TC_VAR_DIR で実行時生成物(DB・KILL・ログ)一式を別ディレクトリへ分離できる(サンドボックス)。未設定時は完全に従来挙動(ADR-0004) | 必須 | 実装済 |
+| REQ-O05 | 開発機から本番データを観測する経路をデータ種別で確定(git 一方向・本番 push なし・SSH ライブ読取・tc snapshot・SharePoint・Notion ミラー — ADR-0005)。生 WAL DB は直接コピーしない | 必須 | 実装済(snapshot)/ Phase 1(SSH 経路) |
+| REQ-O06 | 中央集権的な構造化(JSON)ログを config で切替(CloudWatch Logs 取り込み用)。既定 plain で後方互換(ADR-0006) | 必須 | 実装済 |
+
+## SC. 意思決定会議シナリオ(council — 売買固有)
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-SC06 | council シナリオ: 式次第(docs/03 第3章)準拠、決裁適用は tc policy record のみ、veto は審議差し戻し。5ペルソナ(macro/momentum/contrarian/quant/risk_manager)で審議する | 必須 | 仕様(scenarios/council.md) |
+
+> council はシナリオ基盤(Magi)を利用するが、運用ポリシーの決裁という売買固有目的のため
+> TradeCouncil が所有する。汎用シナリオ(合議/レビュー/ブレスト/人格テスト)は Magi を参照。
+
+## N. ナレッジ・戦略開発
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-N01 | 戦略カタログ: 戦略のノウハウ(仮説・パラメータ根拠・検証の解釈・運用の学び)を docs/strategies/ に1戦略1カードで蓄積する。学びは append-only、実績数値は DB が真実源(ADR-0007) | 必須 | 実装済(運用は仕様) |
+| REQ-N02 | BOT スキャフォールド: `tc bot new` で戦略雛形4ファイル(bots/・config/bots/・tests/bots/・戦略カード)を一括生成。既存ファイルがあれば何も書かず拒否、config は enabled: false 既定、レジストリ登録は自動編集せずテスト駆動で誘導 | 必須 | 実装済 |
+
+## S. 安全・開発体制
+
+| ID | 要件 | 優先度 | 状態 |
+|---|---|---|---|
+| REQ-S01 | 秘密情報をコード・コミットに含めない(hooks + pre-commit で検査) | 必須 | 実装済 |
+| REQ-S02 | 実弾系・キル解除コマンドを AI からブロック(hooks) | 必須 | 実装済 |
+| REQ-S03 | config/generated・config/policies の手編集をブロック | 必須 | 実装済 |
+| REQ-S04 | core/risk・governance の差分は risk-auditor で審査 | 必須 | 仕様(サブエージェント) |
+| REQ-S05 | たたき台数値をコード・テストにハードコードしない | 必須 | 実装済(テストは明白なテスト値) |
+| REQ-S06 | シークレットは 環境変数 → ルート共有 `.env` → `.claude/settings.local.json` の3段で解決し、placeholder/空は未設定扱い。テンプレート(`.env.example`)のみ git 追跡する(共有実装は [../shared/REQUIREMENTS.md](../shared/REQUIREMENTS.md) REQ-SH02) | 必須 | 実装済 |

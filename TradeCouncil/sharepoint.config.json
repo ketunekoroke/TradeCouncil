@@ -1,0 +1,32 @@
+{
+  "enabled": false,
+  "env_prefix": "TC",
+  "site_url": "https://<tenant>.sharepoint.com/sites/<site>",
+  "tenant_id": "",
+  "client_id": "",
+  "drive": "Documents",
+  "root": "TradeCouncil/Workspace",
+  "folders": {
+    "council": "council",
+    "input": "input",
+    "media-output": "media-output",
+    "reviews": "reviews",
+    "deliberations": "deliberations",
+    "brainstorms": "brainstorms",
+    "persona-tests": "persona-tests"
+  },
+  "git_mirror": {
+    "branch": "main",
+    "remote": "TradeCouncil/Docs",
+    "paths": ["TradeCouncil/docs"],
+    "files": [
+      "TradeCouncil/README.md",
+      "TradeCouncil/DOCS.md",
+      "TradeCouncil/REQUIREMENTS.md",
+      "TradeCouncil/FEATURES.md",
+      "TradeCouncil/TESTCASES.md",
+      "TradeCouncil/BACKLOG.md",
+      "TradeCouncil/DEVELOPMENT.md"
+    ]
+  }
+}

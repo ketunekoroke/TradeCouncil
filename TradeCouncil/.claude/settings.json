@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git merge *)",
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "..\\.venv\\Scripts\\python.exe scripts\\hooks\\block_live.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "..\\.venv\\Scripts\\python.exe scripts\\hooks\\protect_paths.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "..\\.venv\\Scripts\\python.exe scripts\\hooks\\post_edit_test.py",
+            "timeout": 360
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -130,12 +130,14 @@ def list_my_ex_transactions(
     access_token: str | None = None,
     http_get=None,
     per_page: int = 100,
-    max_pages: int = 50,
+    max_pages: int = 200,
 ) -> list[dict]:
-    """自分の経費明細を取得して返す。`date_from`/`date_to`(ISO)はクライアント側で絞る。
+    """自分の経費明細を全ページ取得して返す(`date_from`/`date_to` はクライアント側で絞る)。
 
-    ページングは `?page=N&per_page=M` を試し、空 / 端数 / 先頭 id 重複で停止する(API がページングを
-    無視しても無限ループしない)。実パラメータ名は実機(Swagger)に合わせて要調整。
+    MF は per_page を上限する(実測50件/ページ)。要求 per_page と実サイズが異なるため、
+    **実ページサイズを観測** して最終ページを判定する(`len(batch)<per_page` 停止は
+    初回50件で打ち切る不具合)。明細は取引日の降順なので `date_from` 未満のページで打ち切る。
+    空 / 先頭 id 重複でも停止。id 重複は除外する。
     """
     http_get = http_get or _default_http_get
     if access_token is None:
@@ -147,7 +149,9 @@ def list_my_ex_transactions(
 
     base = _ex_tx_url(pc, office_id)
     out: list[dict] = []
+    seen_ids: set[str] = set()
     seen_first: str | None = None
+    page_size: int | None = None
     for page in range(1, max_pages + 1):
         url = base + "?" + urllib.parse.urlencode({"page": page, "per_page": per_page})
         batch = _as_list(http_get(url, access_token))
@@ -157,9 +161,20 @@ def list_my_ex_transactions(
         if first_id and first_id == seen_first:  # ページングが効かず同じページが返る
             break
         seen_first = first_id
-        out.extend(batch)
-        if len(batch) < per_page:
+        for tx in batch:  # 境界の重複を避けつつ追加
+            tid = str(tx.get("id") or "")
+            if tid and tid in seen_ids:
+                continue
+            seen_ids.add(tid)
+            out.append(tx)
+        if page_size is None:  # サーバの実ページサイズを観測(per_page を無視/上限する場合に対応)
+            page_size = len(batch)
+        elif len(batch) < page_size:  # 観測サイズより短い = 最終ページ
             break
+        if date_from:  # 降順ソート前提: 最古日付が date_from 未満なら以降は範囲外
+            dates = [d for d in (_tx_date(tx) for tx in batch) if d]
+            if dates and min(dates) < date_from:
+                break
 
     if date_from or date_to:
         out = [tx for tx in out if _within(_tx_date(tx), date_from, date_to)]

@@ -44,6 +44,41 @@ def test_pagination_collects_until_short_page():
     assert [t["id"] for t in txs] == ["a", "b", "c"]
 
 
+def test_pagination_handles_server_capped_page_size():
+    # MF 実機: per_page=100 を要求しても 50 件/ページで返す。全ページ取得できること。
+    pages = {
+        1: [{"id": f"a{i}"} for i in range(50)],
+        2: [{"id": f"b{i}"} for i in range(50)],
+        3: [{"id": f"c{i}"} for i in range(9)],  # 最終ページ(端数)
+    }
+    txs = api.list_my_ex_transactions(
+        _pc(), office_id="of1", access_token="tok", http_get=_make_get(pages), per_page=100
+    )
+    assert len(txs) == 109  # 50+50+9(初回50<100で打ち切らない)
+
+
+def test_pagination_early_stops_past_date_from():
+    calls = []
+
+    def _get(url, token):
+        q = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        page = int(q["page"][0])
+        calls.append(page)
+        data = {
+            1: [{"id": "a", "recognized_at": "2026-06-01"}],
+            2: [{"id": "b", "recognized_at": "2025-05-01"}],  # date_from 未満
+            3: [{"id": "c", "recognized_at": "2025-04-01"}],
+        }
+        return {"ex_transactions": data.get(page, [])}
+
+    txs = api.list_my_ex_transactions(
+        _pc(), office_id="of1", access_token="tok", http_get=_get, per_page=1,
+        date_from="2025-07-01", date_to="2026-06-30",
+    )
+    assert [t["id"] for t in txs] == ["a"]  # b/c は範囲外
+    assert 3 not in calls  # page2 で date_from を下回り打ち切り(page3 は取得しない)
+
+
 def test_pagination_stops_on_duplicate_first_id():
     pages = {
         1: [{"id": "a"}, {"id": "b"}],  # full

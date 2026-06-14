@@ -97,10 +97,11 @@ class LedgerEntry:
     jpy_amount: str | None = None
     correlation_key: str = ""
     draft_path: str | None = None
-    mf_status: str = "draft"  # draft | registered
+    mf_status: str = "draft"  # draft | registered | imported(過去分取込) | revised(過去分補正)
     mf_transaction_id: str | None = None  # 登録後の MF 明細 ID(内部)
     mf_number: str | None = None  # 登録後の MF 明細番号(WEB 表示)
     created_at: str | None = None  # ISO(呼び出し側が付与。core は now を持たない)
+    revised_at: str | None = None  # 過去分を補正(PUT)した ISO 時刻
     superseded: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -123,6 +124,7 @@ class LedgerEntry:
             "mf_transaction_id": self.mf_transaction_id,
             "mf_number": self.mf_number,
             "created_at": self.created_at,
+            "revised_at": self.revised_at,
             "superseded": list(self.superseded),
         }
 
@@ -147,6 +149,7 @@ class LedgerEntry:
             mf_transaction_id=d.get("mf_transaction_id") or None,
             mf_number=d.get("mf_number") or None,
             created_at=d.get("created_at") or None,
+            revised_at=d.get("revised_at") or None,
             superseded=list(d.get("superseded") or []),
         )
 

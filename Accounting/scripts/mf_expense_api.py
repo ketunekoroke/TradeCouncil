@@ -25,6 +25,7 @@ from core import moneyforward as mf  # noqa: E402
 from core import oauth  # noqa: E402
 
 _TIMEOUT = 30
+_TIMEOUT_BIN = 60  # 証憑バイナリ DL は大きめ
 
 # 応答配列の候補キー(素のリスト / {"ex_transactions":[...]} / {"data":[...]} を吸収)。
 _LIST_KEYS = ("ex_transactions", "data", "items", "results", "offices")
@@ -61,6 +62,14 @@ def _default_http_post(url: str, token: str, body: dict) -> dict:
 
 def _default_http_put(url: str, token: str, body: dict) -> dict:
     return _send_json(url, token, body, "PUT")
+
+
+def _default_http_get_bytes(url: str, token: str) -> tuple[bytes, str]:
+    """バイナリ GET。`(本文 bytes, Content-Type)` を返す(JSON parse しない)。404 はそのまま送出。"""
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=_TIMEOUT_BIN) as resp:  # noqa: S310
+        ctype = resp.headers.get("Content-Type", "application/octet-stream").split(";")[0].strip()
+        return resp.read(), ctype
 
 
 def _as_list(payload: object) -> list[dict]:
@@ -199,3 +208,22 @@ def update_ex_transaction(
     if access_token is None:
         access_token = oauth.get_access_token(pc)
     return http_put(f"{_ex_tx_url(pc, office_id)}/{tx_id}", access_token, body)
+
+
+def download_ex_transaction_receipt(
+    pc: mf.ProductConfig,
+    office_id: str,
+    tx_id: str,
+    *,
+    access_token: str | None = None,
+    http_get_bytes=None,
+) -> tuple[bytes, str]:
+    """添付証憑のバイナリを取得(`GET .../{id}/mf_file`)し `(bytes, content_type)` を返す。
+
+    証憑が無い明細は API が 404 を返す。呼び出し側で `HTTPError`(404)を「証憑なし」扱いにする。
+    """
+    http_get_bytes = http_get_bytes or _default_http_get_bytes
+    if access_token is None:
+        access_token = oauth.get_access_token(pc)
+    url = f"{_ex_tx_url(pc, office_id)}/{tx_id}/mf_file"
+    return http_get_bytes(url, access_token)

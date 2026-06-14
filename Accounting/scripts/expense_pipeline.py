@@ -23,7 +23,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # Accounting/
 
-from core import extract, gate, ingest, oauth, pdfsplit, policy, refdata, register  # noqa: E402
+from core import (  # noqa: E402
+    extract,
+    gate,
+    ingest,
+    oauth,
+    pdfsplit,
+    policy,
+    refdata,
+    register,
+    revise,
+)
 from scripts import imageproc, mf_expense_api, notify, pdfproc, policy_loader  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +42,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RAW, EXTRACTED, PROCESSED, DRAFTS, REFDATA = "raw", "extracted", "processed", "drafts", "refdata"
 SPLIT = "split"  # 分割スペック(Claude が書く分割サイドカー)の置き場
 SPLIT_SRC = "split_src"  # 分割後に退避した元 PDF(削除せず保持=復元可)
+PAST = "past"  # 過去分(クラウド経費 既存明細)の証憑DL + MF 現値スナップショット置き場
 
 
 # --- 置き場所(var/expense・EXPENSE_VAR_DIR で上書き可)----------------------------------
@@ -59,6 +70,14 @@ def sidecar_path(raw_name: str) -> Path:
 
 def split_spec_path(raw_name: str) -> Path:
     return sub(SPLIT) / f"{raw_name}.json"
+
+
+def past_dir() -> Path:
+    return sub(PAST)
+
+
+def past_snapshot_path(tx_id: str) -> Path:
+    return past_dir() / f"{tx_id}.mf.json"
 
 
 # --- 前期実績(usage)----------------------------------------------------------------------
@@ -95,6 +114,15 @@ def default_refdata_range(today: datetime.date | None = None) -> tuple[str, str]
     today = today or datetime.date.today()
     start, _ = prior_fy_range(today)
     return start, today.isoformat()
+
+
+def current_fy_range(today: datetime.date | None = None) -> tuple[str, str]:
+    """今期(7月〜翌6月)の範囲(ISO)。終端は今日と期末(6/30)の早い方。過去分確認の既定範囲。"""
+    today = today or datetime.date.today()
+    fy_start_year = today.year if today.month >= 7 else today.year - 1
+    start = datetime.date(fy_start_year, 7, 1)
+    end = datetime.date(fy_start_year + 1, 6, 30)
+    return start.isoformat(), min(today, end).isoformat()
 
 
 def run_refdata(
@@ -378,6 +406,8 @@ def export_xlsx(out_path: str | Path | None = None, *, embed_images: bool = True
             "mf_transaction_id": e.mf_transaction_id or "",
         })
         img = sub(PROCESSED) / e.filename
+        if e.filename and not img.is_file():  # 過去分の証憑は past/ にある
+            img = past_dir() / e.filename
         if embed_images and e.filename and img.is_file() and imageproc.is_image(img):
             images[e.correlation_key] = str(img)
     out = Path(out_path) if out_path else (export_dir() / "expense_明細台帳.xlsx")
@@ -399,6 +429,20 @@ def _content_type(path: Path) -> str:
     return _CONTENT_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(str(path))[0] or (
         "application/octet-stream"
     )
+
+
+# content_type → 拡張子(証憑DL の保存名決定。jpeg は .jpeg を採用)。
+_EXT_FROM_CT = {ct: ext for ext, ct in _CONTENT_TYPES.items()}
+
+
+def _ext_for(mf_file: dict, content_type: str | None = None) -> str:
+    """mf_file(name/content_type)から保存拡張子を決める。ファイル名拡張子 → content_type の順。"""
+    name = (mf_file or {}).get("name") or ""
+    suffix = Path(name).suffix.lower()
+    if suffix:
+        return suffix
+    ct = (content_type or (mf_file or {}).get("content_type") or "").split(";")[0].strip().lower()
+    return _EXT_FROM_CT.get(ct, ".bin")
 
 
 def _extract_mf_id(resp: object) -> str | None:
@@ -469,6 +513,19 @@ def _emit_registered_notify(e: ingest.LedgerEntry, *, send_fn) -> bool:
     message = f"明細番号 {e.mf_number or '(未取得)'} ・ {e.ex_item or ''}".strip()
     try:
         return bool(send_fn("operations", title, message, facts=_notify_facts(e), severity="good"))
+    except Exception:
+        return False
+
+
+def _emit_revised_notify(e: ingest.LedgerEntry, change_dicts: list[dict], *, send_fn) -> bool:
+    """補正した過去分明細の詳細を OPERATIONS チャネルへ通知(best-effort)。"""
+    fields = ", ".join(c["field"] for c in change_dicts) or "-"
+    title = f"クラウド経費を補正: {e.payee}"
+    message = f"明細番号 {e.mf_number or '-'} ・ 変更: {fields}"
+    facts = _notify_facts(e)
+    facts["変更項目"] = fields
+    try:
+        return bool(send_fn("operations", title, message, facts=facts, severity="good"))
     except Exception:
         return False
 
@@ -606,6 +663,251 @@ def notify_registered(receipt_id: str | None = None, *, notify_fn=None) -> dict:
     return results
 
 
+# --- 過去分の取込・補正(import-past / revise-past)---------------------------------------
+
+PAST_PREFIX = "past_"
+
+
+def _is_404(exc: Exception) -> bool:
+    return isinstance(exc, urllib.error.HTTPError) and exc.code == 404
+
+
+def import_past(
+    pc,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    list_fn=None,
+    download_fn=None,
+    get_office_id_fn=None,
+    access_token: str | None = None,
+    now: str | None = None,
+    max_pages: int = 200,
+) -> dict:
+    """今期(既定 current_fy_range)のクラウド経費明細を取得し、証憑DL + MF 現値スナップショット +
+    台帳 upsert(`mf_status="imported"`)。証憑なし明細は「証憑なしWEB確認」フラグ(revise 対象外)。
+
+    `past_<tx_id>` で冪等(再実行で `revised` を `imported` に戻さない)。DL は size 一致でskip。
+    `list_fn`/`download_fn`/`get_office_id_fn` は注入可(テストで無ネットワーク化)。
+    """
+    list_fn = list_fn or mf_expense_api.list_my_ex_transactions
+    download_fn = download_fn or mf_expense_api.download_ex_transaction_receipt
+    now = now or _now_iso()
+    df, dt = current_fy_range()
+    date_from, date_to = (date_from or df), (date_to or dt)
+
+    results: dict = {
+        "imported": [], "downloaded": 0, "no_file": [], "skipped": [], "errors": [],
+        "from": date_from, "to": date_to,
+    }
+    if access_token is None:
+        access_token = oauth.get_access_token(pc)
+    gid = get_office_id_fn or mf_expense_api.get_office_id
+    office_id = gid(pc, access_token=access_token)
+    if not office_id:
+        results["errors"].append({"error": "office_id を取得できませんでした"})
+        return results
+
+    txs = list_fn(
+        pc, office_id, date_from=date_from, date_to=date_to,
+        access_token=access_token, max_pages=max_pages,
+    )
+    led = ingest.Ledger.load(ledger_path())
+    pdir = past_dir()
+    pdir.mkdir(parents=True, exist_ok=True)
+
+    for tx in txs:
+        cur = revise.MFCurrent.from_tx(tx)
+        if not cur.tx_id:
+            results["errors"].append({"error": "id の無い明細をスキップしました"})
+            continue
+        past_snapshot_path(cur.tx_id).write_text(
+            json.dumps(cur.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        receipt_name, content_hash = "", ""
+        if cur.has_file:
+            mf_file = cur.raw.get("mf_file") or {}
+            dest = pdir / f"{PAST_PREFIX}{cur.tx_id}{_ext_for(mf_file)}"
+            want = mf_file.get("byte_size")
+            if dest.exists() and want and dest.stat().st_size == int(want):
+                results["skipped"].append({"tx_id": cur.tx_id, "reason": "DL済み(サイズ一致)"})
+                receipt_name, content_hash = dest.name, ingest.content_hash(dest)
+            else:
+                try:
+                    data, _ct = download_fn(pc, office_id, cur.tx_id, access_token=access_token)
+                except Exception as exc:  # 404=証憑消失等は記録して継続
+                    results["errors"].append(
+                        {"tx_id": cur.tx_id, "error": f"証憑DL失敗: {_err_str(exc)}"}
+                    )
+                else:
+                    dest.write_bytes(data)
+                    receipt_name, content_hash = dest.name, ingest.content_hash(dest)
+                    results["downloaded"] += 1
+        else:
+            results["no_file"].append(cur.tx_id)
+
+        rid = f"{PAST_PREFIX}{cur.tx_id}"
+        existing = next((e for e in led.entries if e.receipt_id == rid), None)
+        status = "revised" if (existing and existing.mf_status == "revised") else "imported"
+        corr = policy.correlation_key(cur.date, f"mf{cur.number or cur.tx_id}")
+        entry = ingest.LedgerEntry(
+            receipt_id=rid, content_hash=content_hash, date=cur.date, payee=cur.payee,
+            amount=cur.value, currency=cur.currency, source_file="",
+            filename=(receipt_name or (existing.filename if existing else "")),
+            original_filename=None, ex_item=cur.ex_item, excise=cur.excise,
+            jpy_amount=(cur.value if cur.currency == "JPY" else None), correlation_key=corr,
+            draft_path=None, mf_status=status, mf_transaction_id=cur.tx_id, mf_number=cur.number,
+            created_at=(existing.created_at if existing else now),
+            revised_at=(existing.revised_at if existing else None),
+        )
+        led.upsert(entry)
+        results["imported"].append({
+            "tx_id": cur.tx_id, "payee": cur.payee,
+            "has_file": cur.has_file, "receipt": receipt_name,
+        })
+
+    led.save(ledger_path())
+    return results
+
+
+def revise_past(
+    pc,
+    *,
+    confirm: bool = False,
+    tx_id: str | None = None,
+    update_fn=None,
+    get_office_id_fn=None,
+    access_token: str | None = None,
+    notify_fn=None,
+    now: str | None = None,
+    rewrite_remark: bool = False,
+) -> dict:
+    """取り込んだ過去分に **当期ポリシーを再適用** し、MF 現値との差分を補正(PUT)する。
+
+    事実はサイドカー(`extracted/past_<id>...json`=Claude 再読込)優先、無ければ MF 現値。
+    `confirm=False` はドライラン。`--confirm` で **変更フィールドのみ** PUT。証憑なし明細
+    (`has_file=false`)は WEB 手動で skip。差分ゼロも skip。`receipt_input` は付けない(再OCR回避)。
+    """
+    update_fn = update_fn or mf_expense_api.update_ex_transaction
+    send_fn = _notifier(notify_fn)
+    now = now or _now_iso()
+    usage = load_usage()
+    fxr = policy_loader.fx_rule()
+    ovr = policy_loader.overrides()
+    led = ingest.Ledger.load(ledger_path())
+
+    results: dict = {
+        "revised": [], "no_change": [], "skipped": [], "errors": [], "dry_run": not confirm,
+    }
+    targets = [
+        e for e in led.entries
+        if e.receipt_id.startswith(PAST_PREFIX) and e.mf_status in ("imported", "revised")
+    ]
+    if tx_id:
+        targets = [e for e in targets if tx_id in (e.mf_transaction_id or "")]
+    if not targets:
+        return results
+
+    office_id = None
+    if confirm:
+        if access_token is None:
+            access_token = oauth.get_access_token(pc)
+        gid = get_office_id_fn or mf_expense_api.get_office_id
+        office_id = gid(pc, access_token=access_token)
+        if not office_id:
+            results["errors"].append({"error": "office_id を取得できませんでした"})
+            return results
+
+    for e in targets:
+        tid = e.mf_transaction_id or e.receipt_id[len(PAST_PREFIX):]
+        snap_p = past_snapshot_path(tid)
+        if not snap_p.is_file():
+            results["errors"].append(
+                {"tx_id": tid, "error": "MF 現値スナップショットなし(import-past を先に)"}
+            )
+            continue
+        try:
+            cur = revise.MFCurrent.from_dict(json.loads(snap_p.read_text(encoding="utf-8")))
+        except (ValueError, OSError) as exc:
+            results["errors"].append({"tx_id": tid, "error": f"スナップショット不正: {exc}"})
+            continue
+        if not cur.has_file:  # 証憑なしは WEB 手動(決定 2026-06-15)
+            results["skipped"].append({"tx_id": tid, "reason": "証憑なし(WEB手動)"})
+            continue
+
+        sc = sidecar_path(e.filename) if e.filename else None
+        if sc and sc.is_file():
+            try:
+                fields = extract.parse_sidecar(json.loads(sc.read_text(encoding="utf-8")))
+            except (ValueError, OSError) as exc:
+                results["errors"].append({"tx_id": tid, "error": f"サイドカー不正: {exc}"})
+                continue
+            source = "証憑再読込"
+        else:
+            fields = cur.to_receipt_fields()
+            source = "MF現値(policy-only)"
+        problems = fields.validate()
+        if problems:
+            results["errors"].append({"tx_id": tid, "error": "; ".join(problems)})
+            continue
+
+        draft = policy.apply_policy(
+            fields, usage=usage, fx_rule=fxr, fx_rate=fields.fx_rate, overrides=ovr,
+            receipt_hash=cur.tx_id,
+        )
+        issues = gate.check(draft, fields)
+        if gate.has_errors(issues):
+            msg = "; ".join(i.message for i in issues if i.level == "error")
+            results["skipped"].append({"tx_id": tid, "reason": f"ゲート error: {msg}"})
+            continue
+
+        ex_item_id = usage.ex_item_id(draft.ex_item) if usage else None
+        excise_id = usage.excise_id(draft.excise) if usage else None
+        proposed_remark = f"{draft.payee} {draft.description}".strip() if rewrite_remark else None
+        proposed_memo = register.fx_memo(
+            draft, rate_source=fxr.get("rate_source"), base_rule=fxr.get("base_rule")
+        )
+        changes = revise.diff_entry(
+            cur, draft, fields, ex_item_id=ex_item_id, excise_id=excise_id,
+            proposed_remark=proposed_remark, proposed_memo=proposed_memo,
+            rewrite_remark=rewrite_remark,
+        )
+        if not changes:
+            results["no_change"].append(tid)
+            continue
+        change_dicts = [c.to_dict() for c in changes]
+        if not confirm:
+            results["skipped"].append({
+                "tx_id": tid, "reason": "dry-run(--confirm で更新)", "source": source,
+                "payee": cur.payee, "changes": change_dicts,
+            })
+            continue
+        body = revise.build_update_body(changes, ex_item_id=ex_item_id, excise_id=excise_id)
+        if not body.get("ex_transaction"):
+            results["no_change"].append(tid)
+            continue
+        try:
+            update_fn(pc, office_id, tid, body, access_token=access_token)
+        except (urllib.error.URLError, ValueError, OSError) as exc:
+            results["errors"].append({"tx_id": tid, "error": _err_str(exc)})
+            continue
+        # スナップショットを補正後の現値へ更新(再 revise 時に差分ゼロ=冪等。二重 PUT 防止)。
+        snap_p.write_text(
+            json.dumps(cur.applied(changes).to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        e.mf_status = "revised"
+        e.revised_at = now
+        e.ex_item, e.excise = draft.ex_item, draft.excise
+        e.amount, e.currency, e.jpy_amount = str(draft.amount), draft.currency, draft.jpy_amount
+        led.upsert(e)
+        notified = _emit_revised_notify(e, change_dicts, send_fn=send_fn)
+        results["revised"].append({"tx_id": tid, "changes": change_dicts, "notified": notified})
+
+    led.save(ledger_path())
+    return results
+
+
 # --- 状態・下書き表示 ---------------------------------------------------------------------
 
 def status() -> dict:
@@ -614,11 +916,14 @@ def status() -> dict:
     raw_files = [p.name for p in raw_dir.glob("*") if p.is_file() and not p.name.startswith(".")]
     pending = [n for n in raw_files if not sidecar_path(n).is_file()]
     drafts = list(sub(DRAFTS).glob("*.json")) if sub(DRAFTS).is_dir() else []
+    past = [e for e in led.entries if e.receipt_id.startswith(PAST_PREFIX)]
     return {
         "ledger_entries": len(led.entries),
         "raw_files": len(raw_files),
         "pending_extract": pending,
         "drafts": len(drafts),
+        "past_imported": len([e for e in past if e.mf_status == "imported"]),
+        "past_revised": len([e for e in past if e.mf_status == "revised"]),
     }
 
 

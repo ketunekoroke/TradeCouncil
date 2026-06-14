@@ -115,6 +115,23 @@
   `test_expense_cli`=注入。計186緑)。**実 pypdf でページ分割を検証済**。**未了/将来**: 1枚画像に複数レシートが
   写る場合の分割(現状は PDF のみ。画像は別レシートとして撮影 or crop で対応)、ヘッドレス時の分割サイドカー自動生成。
 
+- **BL-AC-025(完了 2026-06-15)** — **過去分確認機能**(`ac expense import-past` / `revise-past`)。MF 内蔵
+  OCR の精度が低いため、**新ポリシー追加時** などに **今期(未締め)** の既存クラウド経費明細を取込み、証憑を
+  Claude が再読込 → **当期ポリシーを再適用** → MF 現値との差分を **変更フィールドのみ** `PUT` で補正。証憑の
+  バイナリは `GET .../me/ex_transactions/{id}/mf_file`(公式 Swagger 確認)で `var/expense/past/<id>.<ext>` にDL
+  (リサイズなし)、MF 現値スナップショット `<id>.mf.json` を基準に差分。**差分/PUTボディは純粋 `core/revise`**
+  (`MFCurrent`・`FieldChange`・`diff_entry`=名前正規化/Decimal 比較・費目税区分は名前比較→ID送出・`build_update_body`
+  =変更キーのみ・`applied`=補正後スナップショット更新で冪等)、**実 pypdf 同様に I/O は `scripts`**
+  (`download_ex_transaction_receipt`・`import_past`/`revise_past`)。既定ドライラン・`--confirm`・`--id`・
+  `--rewrite-remark`。**証憑は再アップロードしない(再 OCR 回避)・`receipt_input` 不付与**。**証憑なし(紙)明細は
+  WEB 手動フラグ**(自動補正対象外)。冪等(`past_<id>`・DL は size 一致 skip・差分ゼロ skip で二重 PUT 防止)。台帳
+  (xlsx)に過去分も記録(`past/` から証憑解決)。`ac expense status` に過去分件数。ネットワーク非依存テスト 19 件追加
+  (`test_revise`=純粋・`test_mf_expense_api`=DL注入・`test_expense_cli`=list/download/update 注入。計205緑)。
+  **ユーザー決定(2026-06-15)**: 今期分は新ポリシー全面再適用 / 台帳に記録(master push は任意) / 証憑なしは WEB 手動。
+  **適用範囲**: 「過去取引を再計算しない」は締め済み期間の規定。本機能は **今期(未締め)限定**・過年度は対象外
+  (manual.md・accounting-policy.md に明記)。**未了/将来**: 本番 `--confirm` の実機実行、過年度対応、日付キーの
+  ポリシー版選択、過去分原本の master backfill、ヘッドレス時の証憑自動読取。
+
 ## Backlog(次に着手)
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
   pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。**一部完了**: `core/gate.py` と

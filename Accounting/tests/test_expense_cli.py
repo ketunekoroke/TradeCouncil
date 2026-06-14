@@ -392,6 +392,172 @@ def test_cli_split_dispatch(capsys, monkeypatch):
     assert "PDF分割" in out and "DRY-RUN" in out and "multi_a.pdf" in out
 
 
+def _tx_full(tx_id, *, date="2025-09-10", payee="Cafe del sol", ex_item="旅費交通費",
+             value=1500, has_file=True):
+    tx = {
+        "id": tx_id, "number": int(tx_id), "recognized_at": date,
+        "ex_item": {"id": "EI_OLD", "name": ex_item},
+        "dr_excise": {"id": "EX10", "long_name": "課税仕入10%"},
+        "remark": payee, "value": value, "currency": "JPY",
+    }
+    if has_file:
+        tx["mf_file"] = {"id": f"f{tx_id}", "name": "r.jpg",
+                         "content_type": "image/jpeg", "byte_size": 3}
+    return tx
+
+
+def _office(pc, access_token):
+    return "of1"
+
+
+def test_import_past_downloads_and_seeds_ledger():
+    txs = [
+        _tx_full("100", date="2025-09-10"),                  # 在FY + 証憑
+        _tx_full("200", date="2025-10-01", has_file=False),  # 紙(証憑なし)
+        _tx_full("300", date="2024-08-01"),                  # 期外(前期)
+    ]
+
+    def fake_list(pc, office_id, *, date_from, date_to, access_token, max_pages):
+        return [t for t in txs if date_from <= t["recognized_at"] <= date_to]
+
+    dl = []
+
+    def fake_dl(pc, office_id, tx_id, *, access_token):
+        dl.append(tx_id)
+        return (b"img", "image/jpeg")
+
+    res = ep.import_past(
+        _pc_expense(), date_from="2025-07-01", date_to="2026-06-15",
+        list_fn=fake_list, download_fn=fake_dl, get_office_id_fn=_office, access_token="tok",
+    )
+    assert {r["tx_id"] for r in res["imported"]} == {"100", "200"}  # 300 は期外
+    assert res["no_file"] == ["200"] and res["downloaded"] == 1 and dl == ["100"]
+    assert (ep.past_dir() / "past_100.jpg").exists()
+    assert ep.past_snapshot_path("100").is_file()
+    led = ingest.Ledger.load(ep.ledger_path())
+    e = next(x for x in led.entries if x.receipt_id == "past_100")
+    assert e.mf_status == "imported" and e.mf_transaction_id == "100" and e.mf_number == "100"
+
+    # 再実行: DL済み(サイズ一致)でスキップ=冪等。
+    dl.clear()
+    res2 = ep.import_past(
+        _pc_expense(), date_from="2025-07-01", date_to="2026-06-15",
+        list_fn=fake_list, download_fn=fake_dl, get_office_id_fn=_office, access_token="tok",
+    )
+    assert dl == [] and any("DL済み" in s["reason"] for s in res2["skipped"])
+
+
+def test_revise_past_dry_run_then_confirm():
+    _seed_usage_with_ids()  # 旅費交通費→EI_TAXI, 課税仕入 10%→EX10
+    tx = _tx_full("100", ex_item="通信費")  # MF の OCR が誤って通信費
+
+    def fake_list(pc, office_id, *, date_from, date_to, access_token, max_pages):
+        return [tx]
+
+    ep.import_past(
+        _pc_expense(), date_from="2025-07-01", date_to="2026-06-15", list_fn=fake_list,
+        download_fn=lambda *a, **k: (b"img", "image/jpeg"),
+        get_office_id_fn=_office, access_token="tok",
+    )
+    # Claude 再読込: 正しい費目/税区分のサイドカー(past 受領ファイル名で)。
+    _write_sidecar("past_100.jpg", payee="JR東日本", amount="1500",
+                   ex_item="旅費交通費", excise="課税仕入 10%", date="2025-09-10")
+
+    res = ep.revise_past(_pc_expense(), confirm=False)  # ドライラン
+    assert res["dry_run"] and not res["revised"]
+    prev = next(s for s in res["skipped"] if s.get("changes"))
+    assert any(c["field"] == "ex_item" and c["after"] == "旅費交通費" for c in prev["changes"])
+
+    seen = {}
+
+    def fake_update(pc, office_id, tx_id, body, access_token=None):
+        seen.update(tx_id=tx_id, body=body)
+        return {"id": tx_id}
+
+    res2 = ep.revise_past(
+        _pc_expense(), confirm=True, update_fn=fake_update,
+        get_office_id_fn=_office, access_token="tok",
+    )
+    assert res2["revised"] and res2["revised"][0]["tx_id"] == "100"
+    assert seen["body"]["ex_transaction"]["ex_item_id"] == "EI_TAXI"
+    assert "receipt_input" not in seen["body"]["ex_transaction"]  # 再アップロードしない
+    led = ingest.Ledger.load(ep.ledger_path())
+    e = next(x for x in led.entries if x.receipt_id == "past_100")
+    assert e.mf_status == "revised" and e.revised_at and e.ex_item == "旅費交通費"
+
+    # 再実行: スナップショット更新済み → 差分ゼロ(二重PUT防止)。
+    res3 = ep.revise_past(
+        _pc_expense(), confirm=True, update_fn=fake_update,
+        get_office_id_fn=_office, access_token="tok",
+    )
+    assert res3["no_change"] == ["100"] and not res3["revised"]
+
+
+def test_revise_past_skips_no_file_entry():
+    _seed_usage_with_ids()
+    tx = _tx_full("400", ex_item="通信費", has_file=False)  # 紙(証憑なし)
+    ep.import_past(
+        _pc_expense(), date_from="2025-07-01", date_to="2026-06-15",
+        list_fn=lambda *a, **k: [tx], download_fn=lambda *a, **k: (b"", ""),
+        get_office_id_fn=_office, access_token="tok",
+    )
+    res = ep.revise_past(_pc_expense(), confirm=False)
+    assert any("証憑なし" in s["reason"] for s in res["skipped"]) and not res["revised"]
+
+
+def test_export_xlsx_embeds_past_receipt():
+    import io
+
+    pytest.importorskip("openpyxl")
+    pimage = pytest.importorskip("PIL.Image")
+    buf = io.BytesIO()
+    pimage.new("RGB", (60, 80), (180, 180, 180)).save(buf, format="PNG")
+    png = buf.getvalue()
+    tx = _tx_full("100")
+    tx["mf_file"].update(name="r.png", byte_size=len(png))
+
+    ep.import_past(
+        _pc_expense(), date_from="2025-07-01", date_to="2026-06-15",
+        list_fn=lambda *a, **k: [tx], download_fn=lambda *a, **k: (png, "image/png"),
+        get_office_id_fn=_office, access_token="tok",
+    )
+    assert (ep.past_dir() / "past_100.png").exists()
+    out = ep.export_xlsx()
+    import openpyxl
+
+    ws = openpyxl.load_workbook(out).active
+    payees = [ws.cell(r, 4).value for r in range(2, ws.max_row + 1)]
+    assert "Cafe del sol" in payees  # 過去分が台帳に行として載る
+    assert len(ws._images) >= 1  # past/ から証憑サムネイルを埋込
+
+
+def test_cli_import_past_and_revise_past_dispatch(capsys, monkeypatch):
+    from scripts import cli
+    from scripts import expense_pipeline as ep_mod
+
+    monkeypatch.setattr(ep_mod.oauth, "get_access_token", lambda pc: "tok")
+    monkeypatch.setattr(ep_mod.mf_expense_api, "get_office_id", _office)
+    monkeypatch.setattr(
+        ep_mod.mf_expense_api, "list_my_ex_transactions",
+        lambda pc, office_id, **k: [_tx_full("100")],
+    )
+    monkeypatch.setattr(
+        ep_mod.mf_expense_api, "download_ex_transaction_receipt",
+        lambda pc, office_id, tx_id, **k: (b"img", "image/jpeg"),
+    )
+    # クラウド経費の設定を ready に見せる(import-past/revise-past は load_product を通る)。
+    monkeypatch.setattr(cli, "_err", lambda exc: str(exc))
+    from core import moneyforward as mf
+    monkeypatch.setattr(mf, "load_product", lambda product: _pc_expense())
+
+    assert cli.main(["expense", "import-past"]) == 0
+    out = capsys.readouterr().out
+    assert "過去分取込" in out
+    assert cli.main(["expense", "revise-past"]) == 0  # サイドカー無し→policy-only / dry-run
+    out = capsys.readouterr().out
+    assert "過去分補正" in out and "DRY-RUN" in out
+
+
 def test_cli_status_and_process_dispatch(capsys):
     from scripts import cli
 

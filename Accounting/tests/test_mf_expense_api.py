@@ -1,6 +1,9 @@
 """scripts/mf_expense_api.py: 明細取得(http_get 注入・無ネットワーク)。"""
 
+import urllib.error
 import urllib.parse
+
+import pytest
 
 from core.moneyforward import ProductConfig
 from scripts import mf_expense_api as api
@@ -104,3 +107,28 @@ def test_auto_office_id_then_list():
         _pc(), access_token="tok", http_get=_make_get(pages, offices=[{"id": "of9"}]), per_page=100
     )
     assert txs and txs[0]["id"] == "x"
+
+
+def test_download_receipt_injected():
+    seen = {}
+
+    def fake_get_bytes(url, token):
+        seen.update(url=url, token=token)
+        return (b"\xff\xd8\xff img", "image/jpeg")
+
+    data, ct = api.download_ex_transaction_receipt(
+        _pc(), "of1", "tx9", access_token="tok", http_get_bytes=fake_get_bytes
+    )
+    assert data == b"\xff\xd8\xff img" and ct == "image/jpeg"
+    assert seen["url"].endswith("/of1/me/ex_transactions/tx9/mf_file")
+    assert seen["token"] == "tok"
+
+
+def test_download_receipt_404_propagates():
+    def fake_404(url, token):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+
+    with pytest.raises(urllib.error.HTTPError):
+        api.download_ex_transaction_receipt(
+            _pc(), "of1", "tx9", access_token="tok", http_get_bytes=fake_404
+        )

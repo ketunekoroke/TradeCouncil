@@ -392,6 +392,50 @@ def _print_clean_results(results: dict) -> None:
         print(f"  error: {e.get('source_file', '')} — {e['error']}", file=sys.stderr)
 
 
+def _print_import_past_results(results: dict) -> None:
+    print(
+        f"[expense] 過去分取込 {results['from']}〜{results['to']}: "
+        f"取込 {len(results['imported'])} / 証憑DL {results['downloaded']} / "
+        f"証憑なし {len(results['no_file'])} / skip {len(results['skipped'])} / "
+        f"エラー {len(results['errors'])}"
+    )
+    for r in results["imported"]:
+        mark = "🧾" if r["has_file"] else "(証憑なし)"
+        print(f"  取込: {r['tx_id']}  {r['payee']}  {mark}")
+    if results["no_file"]:
+        print(f"  証憑なし(WEB手動): {', '.join(results['no_file'])}")
+    for e in results["errors"]:
+        print(f"  error: {e.get('tx_id', '')} — {e['error']}", file=sys.stderr)
+
+
+def _fmt_change(c: dict) -> str:
+    return f"{c['field']}: {c['before']!r}→{c['after']!r}"
+
+
+def _print_revise_past_results(results: dict) -> None:
+    mode = "DRY-RUN(更新なし)" if results["dry_run"] else "本番更新"
+    print(
+        f"[expense] 過去分補正 {mode}: 補正 {len(results['revised'])} / "
+        f"変更なし {len(results['no_change'])} / skip {len(results['skipped'])} / "
+        f"エラー {len(results['errors'])}"
+    )
+    for r in results["revised"]:
+        teams = " / Teams通知✓" if r.get("notified") else ""
+        print(f"  補正: {r['tx_id']}  " + " ; ".join(_fmt_change(c) for c in r["changes"]) + teams)
+    for s in results["skipped"]:
+        changes = s.get("changes")
+        if changes:
+            src = f"[{s.get('source', '')}] " if s.get("source") else ""
+            print(
+                f"  予定: {s['tx_id']}  {src}{s.get('payee', '')}  "
+                + " ; ".join(_fmt_change(c) for c in changes)
+            )
+        else:
+            print(f"  skip: {s['tx_id']} — {s['reason']}")
+    for e in results["errors"]:
+        print(f"  error: {e.get('tx_id', '')} — {e['error']}", file=sys.stderr)
+
+
 def cmd_expense(args: argparse.Namespace) -> int:
     from scripts import expense_pipeline as ep
 
@@ -481,7 +525,7 @@ def cmd_expense(args: argparse.Namespace) -> int:
         st = ep.status()
         print(
             f"[expense] 台帳 {st['ledger_entries']} 件 / raw {st['raw_files']} 件 / "
-            f"下書き {st['drafts']} 件"
+            f"下書き {st['drafts']} 件 / 過去分 取込{st['past_imported']}・補正{st['past_revised']}"
         )
         for name in st["pending_extract"]:
             print(f"  抽出待ち: {name}")
@@ -529,6 +573,45 @@ def cmd_expense(args: argparse.Namespace) -> int:
         _print_register_results(results)
         return 0 if not results["errors"] else 1
 
+    if cmd in ("import-past", "revise-past"):
+        from core import moneyforward as mf
+        from core import oauth
+
+        pc = mf.load_product("expense")
+        if not pc.is_ready():
+            print(
+                "[expense] 接続設定が未完了です(`mf config --product expense`)。"
+                f" 未設定: {', '.join(pc.missing_required())}",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            if cmd == "import-past":
+                results = ep.import_past(
+                    pc, date_from=getattr(args, "date_from", None),
+                    date_to=getattr(args, "date_to", None),
+                )
+            else:
+                results = ep.revise_past(
+                    pc, confirm=args.confirm, tx_id=getattr(args, "id", None),
+                    rewrite_remark=getattr(args, "rewrite_remark", False),
+                )
+        except oauth.ReloginRequired as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except (urllib.error.URLError, ValueError) as exc:
+            verb = "取込" if cmd == "import-past" else "補正"
+            print(f"error: 過去分の{verb}に失敗: {_err(exc)}", file=sys.stderr)
+            return 1
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if cmd == "import-past":
+            _print_import_past_results(results)
+        else:
+            _print_revise_past_results(results)
+        return 0 if not results["errors"] else 1
+
     if cmd == "clean-inbox":
         results = ep.clean_inbox(confirm=args.confirm, registered_only=not args.processed)
         _print_clean_results(results)
@@ -560,7 +643,8 @@ def cmd_expense(args: argparse.Namespace) -> int:
 
     print(
         "usage: ac expense "
-        "refdata|pull|split|process|push|register|clean-inbox|notify|status|drafts|csv|xlsx",
+        "refdata|pull|split|process|push|register|import-past|revise-past|"
+        "clean-inbox|notify|status|drafts|csv|xlsx",
         file=sys.stderr,
     )
     return 2
@@ -663,6 +747,19 @@ def build_parser() -> argparse.ArgumentParser:
     pe_reg.add_argument("--id", help="receipt_id の部分一致で対象を絞る")
     pe_reg.add_argument(
         "--original", action="store_true", help="証憑に原本(_original)を使う(既定: トリミング後)"
+    )
+    pe_imp = exp_sub.add_parser(
+        "import-past", help="今期の既存クラウド経費明細を取込み証憑をDL(過去分確認の前段)"
+    )
+    pe_imp.add_argument("--from", dest="date_from", help="取得開始日 ISO(既定: 今期7/1)")
+    pe_imp.add_argument("--to", dest="date_to", help="取得終了日 ISO(既定: 今日)")
+    pe_rev = exp_sub.add_parser(
+        "revise-past", help="取込んだ過去分に当期ポリシーを再適用し差分を補正(既定ドライラン)"
+    )
+    pe_rev.add_argument("--confirm", action="store_true", help="本番更新 PUT(未指定はドライラン)")
+    pe_rev.add_argument("--id", help="MF 明細 ID の部分一致で対象を絞る")
+    pe_rev.add_argument(
+        "--rewrite-remark", action="store_true", help="摘要を店名先頭へ整形(既定は温存)"
     )
     pe_clean = exp_sub.add_parser(
         "clean-inbox", help="登録済みの証憑を SharePoint inbox から削除(既定はドライラン)"

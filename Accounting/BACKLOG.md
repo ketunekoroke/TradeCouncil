@@ -33,6 +33,14 @@
   **所属事業者一覧(件数=1)** を返すことを実機検証。接続情報は公式 Swagger
   (`https://expense.moneyforward.com/api/index.json`)から確認: 必須 scope `user_setting:write`、全6スコープ。
   config の `products.expense` に offices_url・最小スコープを記入済。会計の単一 tenant と異なり offices は**リスト**。
+- **BL-AC-018(完了 2026-06-14)** — **公式リモート MCP サーバ(クラウド会計)を接続・疎通確認**。
+  `https://beta.mcp.developers.biz.moneyforward.com/mcp/ca/v3`(HTTP・OAuth2、`www-authenticate` で要求 scope
+  `mfc/accounting/*` 群を提示)。Claude Desktop の claude.ai コネクタとして接続(`/mcp` で OAuth)。`currentOffice` で
+  CloudBloom合同会社・FY2023〜2025 を取得して連携確認。公開ツール19(読み15: currentOffice/getTermSettings/
+  getAccounts/getSubAccounts/getDepartments/getTaxes/getTradePartners/getConnectedAccounts/getJournals/
+  getJournalById/試算表 PL・BS/推移表 PL・BS/en_ja_dictionary、書込4: postJournals/putJournals/postTransactions/
+  postTradePartners。削除系なし)。**自作 `core/moneyforward.py`(OAuth 疎通)とは別の連携経路** — 採用方針は
+  Icebox BL-AC-106 で検討。GA 正式 URL は ot10.html で要確認(現状 beta)。書込ツールは明示確認を経てのみ実行。
 
 ## Backlog(次に着手)
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
@@ -44,6 +52,10 @@
 
 ## Icebox(将来アイデア)
 
+- **BL-AC-106** — 会計連携の**経路選定**: 公式リモート MCP(BL-AC-018)と自作 `core/moneyforward.py`(REST 直叩き)の
+  使い分け。MCP は仕訳/帳票/マスタを即利用でき保守も MF 側だが、対話 UI 前提・自動パイプライン/CI には組み込みにくい。
+  REST 直叩きは検証ゲート・無人実行・監査ログに向く。**案: 対話的な確認/閲覧は MCP、無人の検証・登録パイプラインは core**。
+  GA 正式 URL 確定(ot10.html)と書込ガバナンス(誰が postJournals を承認するか)も併せて決める。
 - **BL-AC-100** — 会計バックエンドのアダプタ抽象化(将来 freee 等へ拡張可能に)。今は MoneyForward 前提。
 - **BL-AC-101** — クラウドBox 連携(電帳法保存)。トライアル API のため本番依存に置かず、手動アップロードを
   フォールバックに用意(→ docs/caveats.md)。

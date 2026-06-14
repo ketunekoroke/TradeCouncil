@@ -595,6 +595,7 @@ def cmd_expense(args: argparse.Namespace) -> int:
                 results = ep.revise_past(
                     pc, confirm=args.confirm, tx_id=getattr(args, "id", None),
                     rewrite_remark=getattr(args, "rewrite_remark", False),
+                    sidecar_only=getattr(args, "sidecar_only", False),
                 )
         except oauth.ReloginRequired as exc:
             print(str(exc), file=sys.stderr)
@@ -760,6 +761,10 @@ def build_parser() -> argparse.ArgumentParser:
     pe_rev.add_argument("--id", help="MF 明細 ID の部分一致で対象を絞る")
     pe_rev.add_argument(
         "--rewrite-remark", action="store_true", help="摘要を店名先頭へ整形(既定は温存)"
+    )
+    pe_rev.add_argument(
+        "--sidecar-only", action="store_true",
+        help="サイドカーがある明細だけ補正(未確認分への policy-only 変更を防ぐ)",
     )
     pe_clean = exp_sub.add_parser(
         "clean-inbox", help="登録済みの証憑を SharePoint inbox から削除(既定はドライラン)"

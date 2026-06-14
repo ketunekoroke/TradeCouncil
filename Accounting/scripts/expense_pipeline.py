@@ -829,12 +829,14 @@ def revise_past(
     notify_fn=None,
     now: str | None = None,
     rewrite_remark: bool = False,
+    sidecar_only: bool = False,
 ) -> dict:
     """取り込んだ過去分に **当期ポリシーを再適用** し、MF 現値との差分を補正(PUT)する。
 
     事実はサイドカー(`extracted/past_<id>...json`=Claude 再読込)優先、無ければ MF 現値。
-    `confirm=False` はドライラン。`--confirm` で **変更フィールドのみ** PUT。証憑なし明細
-    (`has_file=false`)は WEB 手動で skip。差分ゼロも skip。`receipt_input` は付けない(再OCR回避)。
+    `sidecar_only=True` は **サイドカーがある明細だけ** 対象(未確認明細への policy-only 変更を防ぐ
+    =一括補正の安全弁)。`confirm=False` はドライラン。`--confirm` で **変更フィールドのみ** PUT。
+    証憑なし(`has_file=false`)は WEB 手動で skip。差分ゼロも skip。`receipt_input` は付けない。
     """
     update_fn = update_fn or mf_expense_api.update_ex_transaction
     send_fn = _notifier(notify_fn)
@@ -891,6 +893,9 @@ def revise_past(
                 results["errors"].append({"tx_id": tid, "error": f"サイドカー不正: {exc}"})
                 continue
             source = "証憑再読込"
+        elif sidecar_only:  # 未確認明細は触らない(一括補正の安全弁)
+            results["skipped"].append({"tx_id": tid, "reason": "サイドカーなし(--sidecar-only)"})
+            continue
         else:
             fields = cur.to_receipt_fields()
             source = "MF現値(policy-only)"

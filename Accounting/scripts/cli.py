@@ -304,6 +304,240 @@ def cmd_mf(args: argparse.Namespace) -> int:
     return 2
 
 
+def _interactive_overwrite_approver():
+    """重複(similar)時に上書き可否を対話で問う関数を返す。ヘッドレスでは False(上書きしない)。"""
+
+    def _ask(existing, fields) -> bool:
+        try:
+            ans = input(
+                f"重複の可能性: 既存 {existing.filename}({existing.amount}{existing.currency})を "
+                f"新 {fields.payee}/{fields.amount}{fields.currency} で上書きしますか? [y/N]: "
+            ).strip().lower()
+        except (EOFError, OSError):
+            return False
+        return ans in ("y", "yes")
+
+    return _ask
+
+
+def _print_process_results(results: dict) -> None:
+    proc = results["processed"]
+    print(
+        f"[expense] 処理 {len(proc)} / skip {len(results['skipped'])} / "
+        f"抽出待ち {len(results['pending_extract'])} / エラー {len(results['errors'])}"
+    )
+    for p in proc:
+        print(p["summary"] + ("   (上書き)" if p.get("overwrote") else ""))
+    for s in results["skipped"]:
+        print(f"  skip: {s['file']} — {s['reason']}")
+    for name in results["pending_extract"]:
+        print(f"  抽出待ち(Claude がサイドカー生成): {name}")
+    for e in results["errors"]:
+        print(f"  error: {e['file']} — {e['error']}", file=sys.stderr)
+
+
+def _print_register_results(results: dict) -> None:
+    mode = "DRY-RUN(送信なし)" if results["dry_run"] else "本番送信"
+    print(
+        f"[expense] 登録 {mode}: 成功 {len(results['registered'])} / "
+        f"skip {len(results['skipped'])} / エラー {len(results['errors'])}"
+    )
+    for r in results["registered"]:
+        teams = " / Teams通知✓" if r.get("notified") else ""
+        mid = r.get("mf_id") or "(なし)"
+        print(f"  登録: {r['receipt_id']} → MF {mid} / {r['ex_item']}{teams}")
+    for s in results["skipped"]:
+        pv = s.get("preview")
+        if pv:
+            print(
+                f"  予定: {s['receipt_id']}  {pv['ex_item']}  {pv['value']}{pv['currency']}"
+                f"(¥{pv.get('jpy')})  証憑添付={pv['証憑添付']}"
+            )
+        else:
+            print(f"  skip: {s['receipt_id']} — {s['reason']}")
+    for e in results["errors"]:
+        print(f"  error: {e.get('receipt_id', '')} — {e['error']}", file=sys.stderr)
+
+
+def _print_clean_results(results: dict) -> None:
+    mode = "DRY-RUN(削除なし)" if results["dry_run"] else "実削除"
+    print(
+        f"[expense] inbox {mode}: 削除 {len(results['deleted'])} / "
+        f"skip {len(results['skipped'])} / エラー {len(results['errors'])}"
+    )
+    for n in results["deleted"]:
+        print(f"  削除: {n}")
+    for s in results["skipped"]:
+        print(f"  対象: {s['source_file']}({s.get('mf_status')}) — {s['reason']}")
+    for e in results["errors"]:
+        print(f"  error: {e.get('source_file', '')} — {e['error']}", file=sys.stderr)
+
+
+def cmd_expense(args: argparse.Namespace) -> int:
+    from scripts import expense_pipeline as ep
+
+    cmd = args.expense_command
+
+    if cmd == "refdata":
+        from core import moneyforward as mf
+        from core import oauth
+
+        pc = mf.load_product(args.product)
+        if not pc.is_ready():
+            print(
+                f"[{args.product}] 接続設定が未完了です(`mf config --product {args.product}`)。"
+                f" 未設定: {', '.join(pc.missing_required())}",
+                file=sys.stderr,
+            )
+            return 1
+        df, dt = ep.default_refdata_range()
+        date_from, date_to = (args.date_from or df), (args.date_to or dt)
+        try:
+            summary = ep.run_refdata(pc, date_from=date_from, date_to=date_to)
+        except oauth.ReloginRequired as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except (urllib.error.URLError, ValueError) as exc:
+            print(f"error: 前期実績の取得に失敗: {_err(exc)}", file=sys.stderr)
+            return 1
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(
+            f"[expense] 前期実績 {summary['from']}〜{summary['to']}: "
+            f"明細 {summary['raw_count']} 件 / 集計 {summary['n']} 件 → {ep.usage_path()}"
+        )
+        for title, table in (("費目", summary["ex_items"]), ("税区分", summary["excises"])):
+            if table:
+                print(f"  {title}(使用実績・上位):")
+                for name, c in list(table.items())[:10]:
+                    print(f"    {c:>4} : {name}")
+        return 0
+
+    if cmd == "pull":
+        try:
+            n = ep.pull_inbox()
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"[expense] pull 完了: {n} ファイル → {ep.sub('raw')}")
+        pending = ep.status()["pending_extract"]
+        if pending:
+            print("  抽出待ち(Claude が読んで extracted/<name>.json を生成してください):")
+            for name in pending:
+                print(f"    - {name}")
+        return 0
+
+    if cmd == "process":
+        approver = None
+        if not args.approve_overwrite and not args.yes:
+            approver = _interactive_overwrite_approver()
+        results = ep.process_all(
+            approve_overwrite=args.approve_overwrite,
+            approver=approver,
+            high_value_jpy=(args.high_value or None),
+        )
+        _print_process_results(results)
+        return 0 if not results["errors"] else 1
+
+    if cmd == "push":
+        try:
+            n = ep.push_master()
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"[expense] push 完了: {n} ファイル(SharePoint master を更新)")
+        return 0
+
+    if cmd == "status":
+        st = ep.status()
+        print(
+            f"[expense] 台帳 {st['ledger_entries']} 件 / raw {st['raw_files']} 件 / "
+            f"下書き {st['drafts']} 件"
+        )
+        for name in st["pending_extract"]:
+            print(f"  抽出待ち: {name}")
+        return 0
+
+    if cmd == "drafts":
+        from core import register
+
+        drafts = ep.list_drafts(getattr(args, "id", None))
+        if not drafts:
+            print("[expense] 下書きはありません。")
+            return 0
+        for d in drafts:
+            print(register.to_summary(d))
+        return 0
+
+    if cmd == "csv":
+        out, n = ep.write_drafts_csv(getattr(args, "out", None))
+        print(f"[expense] CSV 書き出し: {n} 件 → {out}")
+        return 0
+
+    if cmd == "register":
+        from core import moneyforward as mf
+        from core import oauth
+
+        pc = mf.load_product("expense")
+        if not pc.is_ready():
+            print(
+                "[expense] 接続設定が未完了です(`mf config --product expense`)。"
+                f" 未設定: {', '.join(pc.missing_required())}",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            results = ep.register_drafts(
+                pc, confirm=args.confirm, receipt_id=getattr(args, "id", None),
+                use_original=args.original,
+            )
+        except oauth.ReloginRequired as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except (urllib.error.URLError, ValueError) as exc:
+            print(f"error: 登録に失敗: {_err(exc)}", file=sys.stderr)
+            return 1
+        _print_register_results(results)
+        return 0 if not results["errors"] else 1
+
+    if cmd == "clean-inbox":
+        results = ep.clean_inbox(confirm=args.confirm, registered_only=not args.processed)
+        _print_clean_results(results)
+        return 0 if not results["errors"] else 1
+
+    if cmd == "xlsx":
+        out = ep.export_xlsx(getattr(args, "out", None), embed_images=not args.no_images)
+        print(f"[expense] 明細台帳 xlsx 生成: {out}")
+        if args.push:
+            try:
+                remote = ep.push_xlsx(out)
+            except SystemExit as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(f"  → SharePoint ドキュメント/{remote} に push 完了")
+        return 0
+
+    if cmd == "notify":
+        results = ep.notify_registered(getattr(args, "id", None))
+        print(
+            f"[expense] Teams 通知(OPERATIONS): 送信 {len(results['sent'])} / "
+            f"未送信 {len(results['skipped'])}"
+        )
+        for r in results["sent"]:
+            print(f"  送信: {r}")
+        for r in results["skipped"]:
+            print(f"  未送信(URL未設定/送信失敗): {r}", file=sys.stderr)
+        return 0
+
+    print(
+        "usage: ac expense "
+        "refdata|pull|process|push|register|clean-inbox|notify|status|drafts|csv|xlsx",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ac", description="Accounting 運用CLI(会計経理支援システム)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -362,6 +596,64 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pm_auth.add_argument("--no-open", action="store_true", help="ブラウザを開かず URL の表示のみ")
     p_mf.set_defaults(func=cmd_mf)
+
+    p_exp = sub.add_parser(
+        "expense", help="経費レシート取込パイプライン(SharePoint master・下書き生成 BL-AC-020)"
+    )
+    exp_sub = p_exp.add_subparsers(dest="expense_command", required=True)
+    pe_refdata = exp_sub.add_parser(
+        "refdata", help="前期のクラウド経費実績から費目/税区分の使用実績を集計"
+    )
+    pe_refdata.add_argument(
+        "--product", choices=["expense"], default="expense", help="対象(既定: expense)"
+    )
+    pe_refdata.add_argument("--from", dest="date_from", help="集計開始日 ISO(既定: 前期7/1)")
+    pe_refdata.add_argument("--to", dest="date_to", help="集計終了日 ISO(既定: 前期6/30)")
+    exp_sub.add_parser("pull", help="SharePoint の expense-inbox を var/expense/raw へ取得")
+    pe_proc = exp_sub.add_parser(
+        "process", help="raw+サイドカーを処理(リネーム/トリミング/重複/ポリシー下書き)"
+    )
+    pe_proc.add_argument(
+        "--approve-overwrite", action="store_true", help="重複時に確認なしで上書き"
+    )
+    pe_proc.add_argument(
+        "--yes", action="store_true", help="対話確認をスキップ(重複は上書きしない)"
+    )
+    pe_proc.add_argument(
+        "--high-value", type=int, default=0, help="高額フラグのしきい値(円。0=既定)"
+    )
+    exp_sub.add_parser("push", help="var/expense/processed を SharePoint master へ push(上書き)")
+    pe_reg = exp_sub.add_parser(
+        "register", help="下書きをクラウド経費へ登録(証憑添付=電帳法。既定はドライラン)"
+    )
+    pe_reg.add_argument("--confirm", action="store_true", help="本番送信(未指定はドライラン)")
+    pe_reg.add_argument("--id", help="receipt_id の部分一致で対象を絞る")
+    pe_reg.add_argument(
+        "--original", action="store_true", help="証憑に原本(_original)を使う(既定: トリミング後)"
+    )
+    pe_clean = exp_sub.add_parser(
+        "clean-inbox", help="登録済みの証憑を SharePoint inbox から削除(既定はドライラン)"
+    )
+    pe_clean.add_argument("--confirm", action="store_true", help="実削除(未指定はドライラン)")
+    pe_clean.add_argument(
+        "--processed", action="store_true", help="登録前(processed)も削除対象に(既定は登録済みのみ)"
+    )
+    pe_xlsx = exp_sub.add_parser(
+        "xlsx", help="経費明細台帳の Excel を生成(--push で ドキュメント/Expense/ へ)"
+    )
+    pe_xlsx.add_argument("--push", action="store_true", help="生成後 SharePoint へ push")
+    pe_xlsx.add_argument("--out", help="出力先(既定: var/expense/export/expense_明細台帳.xlsx)")
+    pe_xlsx.add_argument("--no-images", action="store_true", help="証憑サムネイルを埋め込まない")
+    pe_notify = exp_sub.add_parser(
+        "notify", help="登録済み明細の詳細を Teams(OPERATIONS チャネル)へ送信"
+    )
+    pe_notify.add_argument("--id", help="receipt_id の部分一致で対象を絞る")
+    exp_sub.add_parser("status", help="台帳・抽出待ち・下書きの状態表示")
+    pe_drafts = exp_sub.add_parser("drafts", help="下書き(人可読要約)を表示")
+    pe_drafts.add_argument("--id", help="receipt_id の部分一致で絞る")
+    pe_csv = exp_sub.add_parser("csv", help="下書きを CSV に書き出す(Excel 用 UTF-8 BOM)")
+    pe_csv.add_argument("--out", help="出力先(既定: var/expense/drafts/expense_drafts.csv)")
+    p_exp.set_defaults(func=cmd_expense)
 
     return parser
 

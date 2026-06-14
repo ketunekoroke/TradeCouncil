@@ -14,9 +14,11 @@ notify:
   env_prefix: AC
 
 # 為替(方針は accounting-policy.md。ここはソース設定の技術項目のみ)。
+# 三菱UFJリサーチ&コンサルティング(murc-kawasesouba.jp)の月末 仲値(TTM=TTS/TTB の中間)を、
+# レシート日付の「前月末」値として当月の取引に継続適用する(2026-06-01〜・税理士確認)。
 fx:
-  rate_source: ""                 # 例: 銀行 TTM。継続適用・税理士確認(docs/accounting-policy.md)
-  base_rule: ttm_trade_date       # 取引日 TTM(原則)
+  rate_source: "三菱UFJリサーチ&コンサルティング 月末仲値(TTM)"
+  base_rule: prev_month_end_ttm   # 前月末仲値を当月に適用(継続適用・税理士確認)
 
 # 抽出の確信度しきい値(これ未満は Teams 確認に回す)。
 extract:

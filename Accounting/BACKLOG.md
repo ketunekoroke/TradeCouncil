@@ -61,10 +61,52 @@
   **経費も `refresh_token` 発行**(expires は約3ヶ月と長寿命)、spike が保存トークンをブラウザ不要で再利用
   (`/api/external/v1/offices` 件数=1)、強制失効後の `mf refresh` が実 refresh グラントで更新。
 
+- **BL-AC-020(完了 2026-06-14)** — **経費レシート取込パイプライン**(SharePoint master・Claude 抽出・
+  前期実績ベース費目・下書き生成)。`ac expense refdata|pull|process|push|status|drafts`。SharePoint を
+  マスタとし、inbox から pull → **Claude が画像/PDF を読んでサイドカー JSON**(項目 + 切出し枠)を生成 →
+  日付_支払先でリネーム・画像トリミング(原本は `_original`)・重複排除(内容ハッシュ / 日付+支払先+金額。
+  重複は承認の上で上書き・版履歴で復元可)・**前期のクラウド経費 `me/ex_transactions` から学習した費目/
+  税区分**を当てた経費明細の下書き(JSON/CSV)を生成 → processed を master へ push。**実 API 書込はせず
+  下書きのみ**(実登録はクラウド経費 REST `me/upload_receipt` / `me/ex_transactions`=`transaction:write` で後段)。
+  会計の勘定科目は扱わない(経費承認 → 会計登録時に MF がマトリクスで自動変換)。core は zero-dep(extract/
+  ingest/refdata/policy/gate/register)、I/O は scripts(SharePoint=shared・画像=Pillow・YAML=PyYAML)。
+  ネットワーク非依存テスト 54 件追加(計 138 緑)。**BL-AC-011/012 を前進**。
+  **未了(後続)**: 実 API 登録、ヘッドレス抽出(ビジョンブリッジ)+ Teams 確認(BL-AC-013)、電帳法/クラウドBOX、
+  `me/ex_transactions` のページング/日付フィルタの実機調整、費目ラベルの id→名前 解決(必要なら office_setting:write)。
+
+- **BL-AC-021(完了 2026-06-15。実装+dry-run確認済)** — **クラウド経費への API 登録(証憑添付=電帳法対応)
+  + inbox 整理**。CSV 取込は証憑を添付できず電帳法に非対応のため、`POST me/ex_transactions` に **receipt_input**
+  (証憑画像 base64)を同梱して **1コールで登録+証憑添付**(`ExTransactionCreateInput.receipt_input` を公式 Swagger
+  で確認)。費目/税区分は **名前→ID** を前期実績(refdata)から解決(`ex_item_id`/`dr_excise_id`)。外貨は
+  value=原通貨額 + jpyrate + use_custom_jpy_rate。接待人数は `ex_transaction_attendant_count_attributes`
+  (サイドカー attendants)。`ac expense register`(既定ドライラン・`--confirm` で本番送信・ゲート error/費目ID未解決は
+  skip)、登録後 `mf_status=registered`+MF明細ID を台帳に記録。`ac expense clean-inbox`(既定ドライラン・`--confirm`
+  で SharePoint inbox から **登録済みの証憑のみ**削除=証憑が MF に入った後だけ消す・ごみ箱復元可)。ネットワーク
+  非依存テスト追加(計154緑)。**dry-run 実機確認済**(sairee 領収書: 費目ID/税区分ID 解決・証憑添付=True・送信なし)。
+  **未了**: 本番 `--confirm` 登録の実機実行(ユーザー確認後)、登録応答の MF明細ID 形の最終確認、接待人数の自動補完。
+
+- **BL-AC-022(完了 2026-06-15)** — **経費明細台帳の Excel 出力**(`ac expense xlsx [--push]`)。ledger+draft から
+  **証憑サムネイル**(Pillow 縮小・埋込)+ **クラウド経費の明細番号** + サイドカー相当の内容(日付/支払先/費目/税区分/
+  金額/通貨/レート/円換算/登録番号/内容/相関キー/状態/MF-ID)を 1行=1明細の xlsx(openpyxl)に。`--push` で
+  SharePoint **ドキュメント/Expense/ 直下**へ単一ファイル upload。登録時に MF 明細番号(`number`)を ledger に保存
+  (既存分は GET で backfill=946)。`PUT me/ex_transactions/{id}`(`update_ex_transaction`)で remark(店名先頭)/memo
+  (為替レート適用)を更新可能に。**実機確認済**(ドキュメント/Expense/expense_明細台帳.xlsx)。
+  **将来**: クラウド経費の**過去分**(`me/ex_transactions` 全件)を同じ行形式で取込(明細番号/相関キーで突合)。
+
+- **BL-AC-023(完了 2026-06-15)** — **Teams 通知**(クラウド経費へ登録時に OPERATIONS チャネルへ詳細送信)。
+  `scripts/notify.py`(stdlib urllib・Power Automate Workflows へ Adaptive Card v1.4 を POST。形式は TradeCouncil
+  ADR-0002 を踏襲)。env は `TEAMS_AC_WORKFLOW_URL[_<CHANNEL>]`(system.yaml notify.env_prefix=AC)。`register --confirm`
+  成功時に 明細番号/日付/支払先/費目/税区分/金額/円換算/証憑有無/相関キー/MF-ID を OPERATIONS へ自動送信(best-effort・
+  失敗で本体を止めない)。`ac expense notify [--id]` で既存分の送信/再送も可。**実機送信確認済**(明細946 を OPERATIONS)。
+  テスト追加(計167緑・URL/POST/notify 注入で無ネットワーク)。**将来**: EXPENSE チャネル通知、ヘッドレス時の
+  Teams 確認カード(BL-AC-013)。
+
 ## Backlog(次に着手)
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
-  pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。
-- **BL-AC-012** — エージェント本体 `core/` の最小実装(取り込み → 抽出 → 検証 → 登録の骨格)。
+  pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。**一部完了**: `core/gate.py` と
+  `check_compliance.py --drafts`(下書きの error 級点検)を BL-AC-020 で実装。残: pre-commit/CI 連携・適用開始日版選択。
+- **BL-AC-012** — エージェント本体 `core/` の最小実装(取り込み → 抽出 → 検証 → 登録の骨格)。**一部完了**:
+  取込〜抽出〜検証〜下書きを BL-AC-020 で実装(`core/{ingest,extract,refdata,policy,gate,register}`)。残: 実登録・会計連携(reconcile)。
 - **BL-AC-013** — Teams 確認カード(NG/低信頼項目の提示 → 承認 → 確定値返却)。通知は Teams(ADR-0002 系)。
 
 ## Icebox(将来アイデア)

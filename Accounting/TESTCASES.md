@@ -13,5 +13,6 @@
 | TC-AC06 | Accounting/ を一時退避しても TradeCouncil/Magi のスイートが緑(相互非依存) | Accounting を mv → 各 `test` → 戻す | P1 | REQ-AC02 |
 | TC-AC07 | 検証ゲート(為替・税区分・証憑要件)の単体検証 | `scripts/check_compliance.py`(実装後) | P1 | REQ-EX02(将来) |
 | TC-AC08 | MoneyForward 疎通スパイク(offices 取得まで) | `scripts/spike_moneyforward.py`(手動・実 creds・最小データ) | P2 | REQ-EX01 |
-| TC-AC09 | MoneyForward 設定の解決順(per-project env → config → 共有 env)・プレースホルダ除外・秘密マスク | `tests/test_moneyforward_config.py` | P0 | REQ-EX06 |
-| TC-AC10 | `ac mf config --check` が未設定で exit 1、設定済で exit 0 | `tests/test_moneyforward_config.py`(CLI 経由) | P1 | REQ-EX06 |
+| TC-AC11 | 疎通スパイクの純粋ロジック単体検証(token リクエスト組立=認可コード grant・basic/post 認証・auth_code 欠落で SystemExit、offices URL 解決、offices 件数抽出=応答形状の差を吸収) | `tests/test_spike_moneyforward.py`(ネットワーク・実 creds 不要) | P1 | REQ-EX01 |
+| TC-AC09 | MoneyForward 設定の解決(`MONEYFORWARD_<PRODUCT>_<FIELD>` env → config)・会計/経費の独立性・プレースホルダ除外・秘密マスク | `tests/test_moneyforward_config.py` | P0 | REQ-EX06 |
+| TC-AC10 | `ac mf config [--product] --check` が未設定で exit 1、いずれか系統 ready で exit 0。両系統を表示 | `tests/test_moneyforward_config.py`(CLI 経由) | P1 | REQ-EX06 |

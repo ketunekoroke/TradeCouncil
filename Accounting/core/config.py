@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
+
+# 値の後ろのインラインコメント(空白 + #...)を検出する。クォートされていない値にのみ適用。
+_INLINE_COMMENT = re.compile(r"\s+#")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]  # Accounting/
 
@@ -34,7 +38,13 @@ def _parse_env_file(path: Path) -> dict[str, str]:
             continue
         key, _, value = s.partition("=")
         key = key.strip()
-        value = value.strip().strip('"').strip("'")
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]  # クォート内はそのまま(インラインコメントも除去しない)
+        else:
+            m = _INLINE_COMMENT.search(value)  # 値の後ろの " # コメント" を除去
+            if m:
+                value = value[: m.start()].rstrip()
         if key:
             out[key] = value
     return out

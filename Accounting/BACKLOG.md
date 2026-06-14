@@ -17,8 +17,11 @@
 ## 完了(追補)
 
 - **BL-AC-014** — MoneyForward API 設定の仕組み。非秘密 config(`config/moneyforward.config.json`)+ 秘密 env
-  (`MONEYFORWARD_*`)を `core/moneyforward.py` で解決(per-project env → config → 共有 env)。`ac mf config [--check]`
-  で表示・検証。`scripts/spike_moneyforward.py` を設定連携(OAuth → offices)。`.env.example` に MONEYFORWARD_* 追加。
+  を `core/moneyforward.py` で解決。`ac mf config` で表示・検証。`scripts/spike_moneyforward.py` を設定連携。
+- **BL-AC-015** — MoneyForward 会計 + 経費の **2系統同時対応**(完了)。`config/moneyforward.config.json` を
+  `products.{accounting,expense}` 構造に、env を `MONEYFORWARD_<PRODUCT>_*`(ACCOUNTING/EXPENSE)へ。
+  `ac mf config [--product]` で両系統を表示・検証。OAuth 既定エンドポイントを公式値で記入。手順は
+  docs/setup/moneyforward-api-setup.md。
 
 ## Backlog(次に着手)
 
@@ -28,6 +31,8 @@
   **archive された expense-api-doc リポジトリは使わない**。grant_type / offices URL は env で調整可。
 - **BL-AC-011** — 検証ゲート `scripts/check_compliance.py` 実装(為替換算・税区分・証憑検索3項目・適用開始日 lint)。
   pre-commit / CI から呼ぶ(compliance-checklist.md のタイミング表に従う)。
+- **BL-AC-016** — 認可コードフローの補助(ローカルで `redirect_uri` を受けて `code` を取得する簡易リスナ、
+  リフレッシュトークン更新)。現状は手動で `MONEYFORWARD_<PRODUCT>_AUTH_CODE` を設定する運用。
 - **BL-AC-012** — エージェント本体 `core/` の最小実装(取り込み → 抽出 → 検証 → 登録の骨格)。
 - **BL-AC-013** — Teams 確認カード(NG/低信頼項目の提示 → 承認 → 確定値返却)。通知は Teams(ADR-0002 系)。
 

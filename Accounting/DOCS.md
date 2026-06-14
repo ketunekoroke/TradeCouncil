@@ -10,6 +10,7 @@
 | [docs/manual.md](docs/manual.md) | 運用マニュアル(日次フロー・Teams 確認・月次レビュー・決算前・エラー対応) | 利言 |
 | [docs/compliance-checklist.md](docs/compliance-checklist.md) | 遵守チェック(タイミング別・強制レベル別) | 自動/CI/フック |
 | [docs/design.md](docs/design.md) | システム設計(役割・アーキテクチャ・MoneyForward 連携・セキュリティ) | 参考 |
+| [docs/setup/moneyforward-api-setup.md](docs/setup/moneyforward-api-setup.md) | MoneyForward API キー取得手順(クラウド会計 / クラウド経費・OAuth・反映) | 手順 |
 | [docs/adr/0001-aws-hosting.md](docs/adr/0001-aws-hosting.md) | AWS ホスティング方針(将来フェーズ・方針のみ・実装なし) | 参考 |
 
 > **重要(公式仕様)**: CLAUDE.md と参照ドキュメントは「利言(コンテキスト)」として読み込まれ、**強制ではない**

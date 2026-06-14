@@ -47,20 +47,25 @@ ingest      extract      gate               (人間)        register        reco
 
 ### API 設定の仕組み
 
-接続設定は **非秘密と秘密を分離** して持つ(ADR-0011 / SharePoint と同じ作法)。
+接続設定は **非秘密と秘密を分離** して持つ(ADR-0011 / SharePoint と同じ作法)。**会計(accounting)と
+経費(expense)は別系統**(別 client_id/secret・別 OAuth サーバ)で、プロダクト別に解決する。
 
 | 種別 | 置き場所 | 例 |
 |---|---|---|
-| 非秘密(OAuth/API の URL・scopes・client_id・enabled) | [`config/moneyforward.config.json`](../config/moneyforward.config.json) | `oauth.token_url`, `api.accounting_base` |
-| 秘密(client_secret)・上書き | ルート共有 `.env`(`MONEYFORWARD_*`) | `MONEYFORWARD_CLIENT_SECRET` |
+| 非秘密(OAuth/API の URL・scopes・client_id・enabled) | [`config/moneyforward.config.json`](../config/moneyforward.config.json) の `products.<product>` | `products.expense.oauth.token_url` |
+| 秘密(client_secret)・上書き | ルート共有 `.env`(`MONEYFORWARD_<PRODUCT>_*`) | `MONEYFORWARD_EXPENSE_CLIENT_SECRET` |
 
-- ローダ: [`core/moneyforward.py`](../core/moneyforward.py) の `load_config()` → `MoneyForwardConfig`。
-  各フィールドの解決順は **`MONEYFORWARD_<env_prefix>_<FIELD>`(env)→ config の値 → `MONEYFORWARD_<FIELD>`(env)**
-  (`env_prefix=AC`)。env の解決は [`core/config.py`](../core/config.py)(環境変数 → ルート `.env` →
+- ローダ: [`core/moneyforward.py`](../core/moneyforward.py) の `load_config()` → `MoneyForwardConfig`
+  (`.get("accounting")` / `.get("expense")` で `ProductConfig`)。各フィールドの解決順は
+  **`MONEYFORWARD_<PRODUCT>_<FIELD>`(env)→ config の値**(`<PRODUCT>` = `ACCOUNTING` | `EXPENSE`)。
+  env の解決は [`core/config.py`](../core/config.py)(環境変数 → ルート `.env` →
   `.claude/settings.local.json`。zero-dep)。
-- 確認: `python -m scripts.cli mf config`(秘密はマスク表示)。`--check` で必須項目未設定なら exit 1(pre-flight / CI 用)。
-- 疎通確認: `scripts/spike_moneyforward.py`(設定を使い OAuth → offices。最初に offices を開く。手動実行・実 creds 必要)。
-- ドメイン別プレフィックス `MONEYFORWARD_*` は接続先で名付ける(プロジェクト名を使わない。`BYBIT_*` と同じ作法 — ADR-0011)。
+- 確認: `python -m scripts.cli mf config [--product accounting|expense]`(秘密はマスク表示)。
+  `--check` で必須未設定なら exit 1(`--product` 未指定時はいずれか1系統が ready なら 0。pre-flight / CI 用)。
+- 疎通確認: `scripts/spike_moneyforward.py --product <accounting|expense>`(設定を使い OAuth 認可コードフロー →
+  offices。最初に offices を開く。手動実行・実 creds 必要)。
+- ドメイン別プレフィックス `MONEYFORWARD_<PRODUCT>_*` は接続先で名付ける(プロジェクト名を使わない。
+  `BYBIT_*` と同じ作法 — ADR-0011)。取得手順は [docs/setup/moneyforward-api-setup.md](setup/moneyforward-api-setup.md)。
 
 ## セキュリティ
 

@@ -1,22 +1,42 @@
 {
-  "enabled": false,
-  "env_prefix": "AC",
-  "client_id": "",
-  "oauth": {
-    "authorize_url": "",
-    "token_url": "",
-    "redirect_uri": "http://localhost:8765/callback",
-    "scopes": []
-  },
-  "api": {
-    "expense_base": "",
-    "accounting_base": "",
-    "box_base": ""
+  "products": {
+    "accounting": {
+      "enabled": false,
+      "client_id": "",
+      "oauth": {
+        "authorize_url": "https://api.biz.moneyforward.com/authorize",
+        "token_url": "https://api.biz.moneyforward.com/token",
+        "redirect_uri": "http://localhost:8765/callback",
+        "client_auth": "client_secret_basic",
+        "scopes": [
+          "mfc/accounting/offices.read",
+          "mfc/accounting/accounts.read",
+          "mfc/accounting/taxes.read",
+          "mfc/accounting/trade_partners.read",
+          "mfc/accounting/journal.read",
+          "mfc/accounting/journal.write"
+        ]
+      },
+      "api": { "base": "" }
+    },
+    "expense": {
+      "enabled": false,
+      "client_id": "",
+      "oauth": {
+        "authorize_url": "https://expense.moneyforward.com/oauth/authorize",
+        "token_url": "https://expense.moneyforward.com/oauth/token",
+        "redirect_uri": "https://expense.moneyforward.com/api/oauth2-redirect.html",
+        "scopes": []
+      },
+      "api": { "base": "https://expense.moneyforward.com/api" }
+    }
   },
   "_notes": [
-    "非秘密の接続設定のみを置く。client_secret は置かない(ルート共有 .env の MONEYFORWARD_CLIENT_SECRET)。",
-    "URL/スコープは製品ドメインの Swagger / 開発者ポータルで確認して記入する(docs/caveats.md)。",
-    "各フィールドの解決順: MONEYFORWARD_AC_<FIELD>(env) → この config 値 → MONEYFORWARD_<FIELD>(env)。",
-    "client_id は識別子のため config に直接書いても、env(MONEYFORWARD_CLIENT_ID)で渡してもよい。"
+    "会計(accounting)と経費(expense)は別の OAuth サーバ・別の client_id/secret(片方の資格情報は他方で使えない)。",
+    "非秘密(URL/scopes/client_id)はここ、秘密(client_secret)はルート共有 .env の",
+    "  MONEYFORWARD_ACCOUNTING_CLIENT_SECRET / MONEYFORWARD_EXPENSE_CLIENT_SECRET に置く。",
+    "各フィールドの解決順: MONEYFORWARD_<PRODUCT>_<FIELD>(env) → この products.<product> の値。",
+    "authorize_url/token_url は公式の既定値を記入済み。scopes は使う API のリファレンス/Swagger で確認して追記。",
+    "手順: docs/setup/moneyforward-api-setup.md"
   ]
 }

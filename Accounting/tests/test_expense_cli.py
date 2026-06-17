@@ -599,3 +599,41 @@ def test_cli_status_and_process_dispatch(capsys):
     assert cli.main(["expense", "status"]) == 0
     out = capsys.readouterr().out
     assert "台帳 1 件" in out
+
+
+def test_fetch_masters_merges_ids_into_usage():
+    from core import refdata
+
+    # 学習済み usage(通信費=LEARNED)を種にする。
+    idx = refdata.aggregate_usage(
+        [{"ex_item": {"name": "通信費", "id": "LEARNED"}, "remark": "AWS"}]
+    )
+    ep.save_usage(idx)
+
+    ex_items = [{"id": "E1", "name": "通信費"}, {"id": "E2", "name": "支払手数料"}]
+    excises = [{"id": "T8", "name": "課税仕入 8%"}]
+    summary = ep.fetch_masters(
+        _pc_expense(),
+        access_token="tok",
+        ex_items_fn=lambda pc, oid, *, access_token=None: ex_items,
+        excises_fn=lambda pc, oid, *, access_token=None: excises,
+        get_office_id_fn=lambda pc, *, access_token=None: "of1",
+    )
+    assert summary["ex_items"] == 2 and summary["excises"] == 1
+    assert summary["added_ex_item"] == 1  # 通信費は学習済み→支払手数料のみ追加
+    assert summary["added_excise"] == 1
+    u = ep.load_usage()
+    assert u.ex_item_id("通信費") == "LEARNED"  # 学習済みは保持
+    assert u.ex_item_id("支払手数料") == "E2"  # 未学習費目を解決可能に
+    assert u.excise_id("課税仕入 8%") == "T8"  # 8% を解決可能に
+
+
+def test_fetch_masters_handles_missing_office():
+    summary = ep.fetch_masters(
+        _pc_expense(),
+        access_token="tok",
+        ex_items_fn=lambda *a, **k: [],
+        excises_fn=lambda *a, **k: [],
+        get_office_id_fn=lambda pc, *, access_token=None: None,
+    )
+    assert summary.get("error")

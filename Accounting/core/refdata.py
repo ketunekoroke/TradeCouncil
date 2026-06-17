@@ -90,6 +90,28 @@ class UsageIndex:
     def excise_id(self, name: str) -> str | None:
         return self.excise_ids.get(name)
 
+    def merge_ids(
+        self,
+        *,
+        ex_item_ids: dict[str, str] | None = None,
+        excise_ids: dict[str, str] | None = None,
+    ) -> dict[str, int]:
+        """マスタ由来の name→ID を取り込む(登録時の ID 解決用)。
+
+        **学習済みの対応は上書きしない**(実績の方が現場の使い分けに忠実なため)。新規追加した
+        件数を返す。前期実績に出ない費目(支払手数料 等)・税区分(課税仕入 8% 等)を解決可能にする。
+        """
+        added = {"ex_item": 0, "excise": 0}
+        for name, rid in (ex_item_ids or {}).items():
+            if name and rid and name not in self.ex_item_ids:
+                self.ex_item_ids[name] = str(rid)
+                added["ex_item"] += 1
+        for name, rid in (excise_ids or {}).items():
+            if name and rid and name not in self.excise_ids:
+                self.excise_ids[name] = str(rid)
+                added["excise"] += 1
+        return added
+
     def suggest(self, payee: str, description: str = "") -> Suggestion:
         """取引先(優先)→ キーワード重なり の順で費目・税区分を推定する。"""
         key = _norm(payee)
@@ -197,3 +219,38 @@ def aggregate_usage(transactions: list[dict]) -> UsageIndex:
             if excise:
                 _bump(idx.by_token, tok, "excise", excise)
     return idx
+
+
+# --- マスタ(ex_items / excises)→ name→ID マップ(登録時の ID 解決用)----------------------
+# マスタの項目名キー候補。費目=name、税区分=long_name(詳細名)を優先しつつ name も拾う。
+_MASTER_NAME_KEYS = ("name", "long_name", "label", "display_name")
+
+
+def _master_names(rec: dict) -> list[str]:
+    """1マスタレコードから ID 解決に使う名称候補を集める(重複なし・空除外)。"""
+    out: list[str] = []
+    for k in _MASTER_NAME_KEYS:
+        v = rec.get(k)
+        if isinstance(v, (str, int)) and str(v).strip():
+            s = str(v).strip()
+            if s not in out:
+                out.append(s)
+    return out
+
+
+def master_id_map(records: list[dict]) -> dict[str, str]:
+    """マスタ配列(`{"id","name",...}`)を name→ID 辞書にする。
+
+    税区分は `name`(例 "課税仕入 8%")と `long_name` の双方をキーにして、ドラフトの税区分
+    表記がどちらでも解決できるようにする。先に出た対応を優先(setdefault)。
+    """
+    out: dict[str, str] = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        rid = rec.get("id")
+        if not rid:
+            continue
+        for name in _master_names(rec):
+            out.setdefault(name, str(rid))
+    return out

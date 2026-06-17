@@ -31,8 +31,11 @@
         "token_url": "https://expense.moneyforward.com/oauth/token",
         "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
         "scopes": [
+          "office_setting:write",
           "user_setting:write",
           "transaction:write",
+          "report:write",
+          "account:write",
           "public_resource:read"
         ]
       },

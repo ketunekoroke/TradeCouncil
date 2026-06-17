@@ -4,8 +4,9 @@
   GET /api/external/v1/offices/{office_id}/me/ex_transactions  (scope: transaction:write)
 
 `transaction:write` は「明細の読み書き」権限なので、再認可なしに自分の前期明細を読める。
-全費目/税区分マスタ(ex_items / excises)は office_setting:write が要るため取得しない
-(使用実績は明細から学習)。
+全費目/税区分マスタ(ex_items / excises)は **office_setting:write** が要る(実機: 当該スコープ無しは
+403)。`list_ex_items` / `list_excises` で全件取得し、前期実績に出ない費目(支払手数料 等)・税区分
+(課税仕入 8% 等)の ID を解決できる(`core/refdata` の name→ID マップへマージ)。
 
 ネットワークは注入可能(`http_get`)。office_id は offices 一覧の先頭(CloudBloom は件数=1)。
 ページング・日付フィルタは応答形が揺れるため寛容に扱い、日付は **クライアント側で絞る**。
@@ -189,6 +190,86 @@ def _within(date: str | None, lo: str | None, hi: str | None) -> bool:
     if hi and date > hi:
         return False
     return True
+
+
+def _office_resource_url(pc: mf.ProductConfig, office_id: str, resource: str) -> str:
+    """事業者直下のマスタ URL(`offices/{id}/{resource}`)を組み立てる。"""
+    base = (pc.offices_url or "").rstrip("/")
+    if not base:
+        api = (pc.api_base or "").rstrip("/")
+        base = f"{api}/external/v1/offices" if api else ""
+    if not base:
+        raise SystemExit(
+            "error: 経費 API のベース URL が不明です(config の api.offices_url / api.base を確認)"
+        )
+    return f"{base}/{office_id}/{resource}"
+
+
+def list_office_resource(
+    pc: mf.ProductConfig,
+    office_id: str,
+    resource: str,
+    *,
+    access_token: str | None = None,
+    http_get=None,
+    per_page: int = 100,
+    max_pages: int = 50,
+) -> list[dict]:
+    """事業者直下のマスタ(`offices/{id}/{resource}`)を全ページ取得する。
+
+    要 scope: **office_setting:write**(無しは 403)。応答形は明細と同様に寛容に吸収し、
+    空 / 観測ページサイズ未満 / 先頭 id 重複で停止する(ID マスタは通常1ページ)。
+    """
+    http_get = http_get or _default_http_get
+    if access_token is None:
+        access_token = oauth.get_access_token(pc)
+    base = _office_resource_url(pc, office_id, resource)
+    out: list[dict] = []
+    seen_ids: set[str] = set()
+    seen_first: str | None = None
+    page_size: int | None = None
+    for page in range(1, max_pages + 1):
+        url = base + "?" + urllib.parse.urlencode({"page": page, "per_page": per_page})
+        batch = _as_list(http_get(url, access_token))
+        if not batch:
+            break
+        first_id = str(batch[0].get("id") or "")
+        if first_id and first_id == seen_first:  # ページングが効かず同じページが返る
+            break
+        seen_first = first_id
+        for rec in batch:
+            rid = str(rec.get("id") or "")
+            if rid and rid in seen_ids:
+                continue
+            seen_ids.add(rid)
+            out.append(rec)
+        if page_size is None:
+            page_size = len(batch)
+        elif len(batch) < page_size:
+            break
+    return out
+
+
+def list_ex_items(
+    pc: mf.ProductConfig, office_id: str, *, access_token: str | None = None, http_get=None,
+    per_page: int = 100, max_pages: int = 50,
+) -> list[dict]:
+    """費目マスタ(`GET offices/{id}/ex_items`)を全件取得。要 scope: office_setting:write。"""
+    return list_office_resource(
+        pc, office_id, "ex_items", access_token=access_token, http_get=http_get,
+        per_page=per_page, max_pages=max_pages,
+    )
+
+
+def list_excises(
+    pc: mf.ProductConfig, office_id: str, *, access_token: str | None = None, http_get=None,
+    per_page: int = 100, max_pages: int = 50,
+) -> list[dict]:
+    """税区分マスタ(`GET offices/{id}/excises`)を全件取得。要 scope: office_setting:write。"""
+    return list_office_resource(
+        pc, office_id, "excises", access_token=access_token, http_get=http_get,
+        per_page=per_page, max_pages=max_pages,
+    )
 
 
 def create_ex_transaction(

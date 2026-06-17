@@ -167,3 +167,30 @@ def test_download_receipt_404_propagates():
         api.download_ex_transaction_receipt(
             _pc(), "of1", "tx9", access_token="tok", http_get_bytes=fake_404
         )
+
+
+def _master_get(resource, recs):
+    def _get(url, token):
+        if f"/{resource}" in url:
+            return {resource: recs}
+        return {"offices": [{"id": "of1"}]}
+    return _get
+
+
+def test_list_ex_items_fetches_master():
+    recs = [{"id": "E1", "name": "通信費"}, {"id": "E2", "name": "支払手数料"}]
+    out = api.list_ex_items(_pc(), "of1", access_token="tok", http_get=_master_get("ex_items", recs))
+    assert [r["id"] for r in out] == ["E1", "E2"]
+
+
+def test_list_excises_fetches_master():
+    recs = [{"id": "T8", "name": "課税仕入 8%", "long_name": "課税仕入 8%(軽減)"}]
+    out = api.list_excises(_pc(), "of1", access_token="tok", http_get=_master_get("excises", recs))
+    assert out[0]["name"] == "課税仕入 8%"
+
+
+def test_list_office_resource_propagates_403():
+    def _get(url, token):
+        raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+    with pytest.raises(urllib.error.HTTPError):
+        api.list_ex_items(_pc(), "of1", access_token="tok", http_get=_get)

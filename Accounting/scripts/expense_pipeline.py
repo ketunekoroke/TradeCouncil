@@ -143,6 +143,45 @@ def run_refdata(
     }
 
 
+def fetch_masters(
+    pc,
+    *,
+    access_token: str | None = None,
+    ex_items_fn=None,
+    excises_fn=None,
+    get_office_id_fn=None,
+) -> dict:
+    """費目/税区分マスタを全件取得し、name→ID を usage にマージして保存(要 office_setting:write)。
+
+    前期実績に出ない費目(支払手数料 等)・税区分(課税仕入 8% 等)の ID を解決可能にする。
+    学習済みの対応は上書きしない。`*_fn` は注入可(テストで無ネットワーク化)。
+    """
+    ex_items_fn = ex_items_fn or mf_expense_api.list_ex_items
+    excises_fn = excises_fn or mf_expense_api.list_excises
+    if access_token is None:
+        access_token = oauth.get_access_token(pc)
+    gid = get_office_id_fn or mf_expense_api.get_office_id
+    office_id = gid(pc, access_token=access_token)
+    if not office_id:
+        return {"error": "office_id を取得できませんでした"}
+
+    ex_items = ex_items_fn(pc, office_id, access_token=access_token)
+    excises = excises_fn(pc, office_id, access_token=access_token)
+    ex_map = refdata.master_id_map(ex_items)
+    exc_map = refdata.master_id_map(excises)
+    idx = load_usage() or refdata.UsageIndex()
+    added = idx.merge_ids(ex_item_ids=ex_map, excise_ids=exc_map)
+    save_usage(idx)
+    return {
+        "ex_items": len(ex_items),
+        "excises": len(excises),
+        "added_ex_item": added["ex_item"],
+        "added_excise": added["excise"],
+        "ex_item_names": sorted(ex_map.keys()),
+        "excise_names": sorted(exc_map.keys()),
+    }
+
+
 # --- 複数レシート PDF の分割(1ファイル1レシート化)-------------------------------------
 
 def split_pdfs(*, confirm: bool = False, page_count_fn=None, split_fn=None) -> dict:

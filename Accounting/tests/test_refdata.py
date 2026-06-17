@@ -1,6 +1,6 @@
 """core/refdata.py: 前期明細の集計と費目/税区分サジェスト。"""
 
-from core.refdata import UsageIndex, aggregate_usage
+from core.refdata import UsageIndex, aggregate_usage, master_id_map
 
 
 def _tx(ex_item, excise, payee, name=""):
@@ -91,3 +91,32 @@ def test_aggregate_real_mf_schema():
     s = idx.suggest("品川プリンスホテル")  # 店名(remark)で当てる
     assert s.ex_item == "会議費"
     assert s.excise == "課税仕入 10%"
+
+
+def test_master_id_map_uses_name_and_long_name():
+    recs = [
+        {"id": "EX1", "name": "支払手数料"},
+        {"id": "TX8", "name": "課税仕入 8%", "long_name": "課税仕入 8%(軽減)"},
+        {"id": "", "name": "id無は無視"},
+        "dict以外は無視",
+    ]
+    m = master_id_map(recs)
+    assert m["支払手数料"] == "EX1"
+    assert m["課税仕入 8%"] == "TX8"
+    assert m["課税仕入 8%(軽減)"] == "TX8"  # long_name もキーにする
+    assert "id無は無視" not in m
+
+
+def test_merge_ids_adds_without_overriding_learned():
+    idx = aggregate_usage([
+        {"ex_item": {"name": "通信費", "id": "LEARNED"},
+         "dr_excise": {"long_name": "課税仕入 10%", "id": "T10"}, "remark": "AWS"},
+    ])
+    added = idx.merge_ids(
+        ex_item_ids={"通信費": "MASTER", "支払手数料": "EX1"},  # 通信費は学習済み
+        excise_ids={"課税仕入 8%": "TX8"},
+    )
+    assert added == {"ex_item": 1, "excise": 1}  # 新規のみ
+    assert idx.ex_item_id("通信費") == "LEARNED"  # 学習済みは上書きしない
+    assert idx.ex_item_id("支払手数料") == "EX1"  # 未学習費目を解決可能に
+    assert idx.excise_id("課税仕入 8%") == "TX8"  # 未学習税区分(8%)を解決可能に

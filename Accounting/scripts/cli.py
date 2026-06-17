@@ -477,6 +477,46 @@ def cmd_expense(args: argparse.Namespace) -> int:
                     print(f"    {c:>4} : {name}")
         return 0
 
+    if cmd == "masters":
+        from core import moneyforward as mf
+        from core import oauth
+
+        pc = mf.load_product(args.product)
+        if not pc.is_ready():
+            print(
+                f"[{args.product}] 接続設定が未完了です(`mf config --product {args.product}`)。"
+                f" 未設定: {', '.join(pc.missing_required())}",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            summary = ep.fetch_masters(pc)
+        except oauth.ReloginRequired as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except (urllib.error.URLError, ValueError) as exc:
+            print(
+                f"error: マスタ取得に失敗: {_err(exc)}"
+                "(403 の場合は scope office_setting:write で再認可してください)",
+                file=sys.stderr,
+            )
+            return 1
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if summary.get("error"):
+            print(f"error: {summary['error']}", file=sys.stderr)
+            return 1
+        print(
+            f"[expense] マスタ取得: 費目 {summary['ex_items']} 件 / 税区分 {summary['excises']} 件 "
+            f"→ usage に ID 追加(費目 +{summary['added_ex_item']} / 税区分 +{summary['added_excise']})"
+            f" {ep.usage_path()}"
+        )
+        if args.show:
+            print("  費目:", "、".join(summary["ex_item_names"]))
+            print("  税区分:", "、".join(summary["excise_names"]))
+        return 0
+
     if cmd == "pull":
         try:
             n = ep.pull_inbox()
@@ -644,7 +684,7 @@ def cmd_expense(args: argparse.Namespace) -> int:
 
     print(
         "usage: ac expense "
-        "refdata|pull|split|process|push|register|import-past|revise-past|"
+        "refdata|masters|pull|split|process|push|register|import-past|revise-past|"
         "clean-inbox|notify|status|drafts|csv|xlsx",
         file=sys.stderr,
     )
@@ -722,6 +762,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pe_refdata.add_argument("--from", dest="date_from", help="集計開始日 ISO(既定: 前期7/1)")
     pe_refdata.add_argument("--to", dest="date_to", help="集計終了日 ISO(既定: 前期6/30)")
+    pe_masters = exp_sub.add_parser(
+        "masters", help="費目/税区分マスタを取得し usage に ID をマージ(要 office_setting:write)"
+    )
+    pe_masters.add_argument(
+        "--product", choices=["expense"], default="expense", help="対象(既定: expense)"
+    )
+    pe_masters.add_argument(
+        "--show", action="store_true", help="取得した費目/税区分の名称一覧も表示"
+    )
     exp_sub.add_parser("pull", help="SharePoint の expense-inbox を var/expense/raw へ取得")
     pe_split = exp_sub.add_parser(
         "split",

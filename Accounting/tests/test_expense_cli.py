@@ -680,3 +680,29 @@ def test_sync_var_orchestration_injected():
     assert res["remote"] == "Expense/Var/expense"
     assert "Expense/Var/expense/ledger.json" in pushes
     assert pulls == [("Expense/Var/expense/drafts/d.json", {"id": "r2"})]  # remote item を pull に渡す
+
+
+def test_sync_var_refreshes_token_on_401():
+    calls = {"push": 0, "refresh": 0}
+
+    def push(d, lp, rf, t):
+        calls["push"] += 1
+        if t == "old":  # 旧トークンは失効 → 401
+            raise RuntimeError("Microsoft Graph HTTP 401: token is expired")
+
+    def refresh():
+        calls["refresh"] += 1
+        return "new"
+
+    res = ep.sync_var(
+        connect=lambda base: ("drv", "Expense/Var/expense", "old"),
+        local_index_fn=lambda b: {"ledger.json": 100.0},
+        remote_index_fn=lambda d, rb, t: {},
+        push_fn=push,
+        pull_fn=lambda *a, **k: None,
+        token_refresh=refresh,
+    )
+    assert res["pushed"] == ["ledger.json"]
+    assert calls["refresh"] == 1  # 401 検知で再取得
+    assert calls["push"] == 2  # 失敗1 + 再試行成功1
+    assert res["token_refreshes"] == 1

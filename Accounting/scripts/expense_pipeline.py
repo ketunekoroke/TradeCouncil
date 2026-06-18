@@ -1147,6 +1147,12 @@ def var_remote_base(cfg: dict, base: Path) -> str:
     return f"{root}/{base.name}"
 
 
+def _is_token_expired(exc: Exception) -> bool:
+    """例外が Graph のトークン失効(401)由来か。"""
+    s = str(exc).lower()
+    return "401" in s or "expired" in s or "invalidauthenticationtoken" in s
+
+
 def sync_var(
     *,
     core_only: bool = False,
@@ -1155,20 +1161,26 @@ def sync_var(
     remote_index_fn=None,
     push_fn=None,
     pull_fn=None,
+    token_refresh=None,
+    refresh_every: int = 150,
 ) -> dict:
     """現在の expense_root()(EXPENSE_VAR_DIR 尊重)を SharePoint `Expense/Var/<名>` と双方向同期。
 
     mtime newer-wins・追加型(削除は伝播しない)。`core_only=True` は状態の核(_is_var_core)だけ。
-    `connect`/`*_fn` はテストで注入可(無ければ実 SharePoint へ接続)。初回は遠隔未作成でも push 側で
-    フォルダを自動作成する。
+    長時間同期で **Graph トークンが失効(401)しても再取得して継続**する(client_credentials=都度新規。
+    `refresh_every` 件ごとに先回り再取得 + 401 検知時に再取得して1回再試行)。`connect`/`*_fn`/`token_refresh`
+    はテストで注入可。初回は遠隔未作成でも push 側でフォルダを自動作成する。
     """
     sp = _shared_sp()
     base = expense_root()
+    cfg = None
     if connect is not None:
         drive_id, remote_base, token = connect(base)
     else:
         sp, cfg, token, drive_id = _sp_drive(sp)
         remote_base = var_remote_base(cfg, base)
+    if token_refresh is None and cfg is not None:
+        token_refresh = lambda: sp.get_token(cfg)  # noqa: E731 — 失効時の再取得
 
     local_index_fn = local_index_fn or sp._local_index
     remote_index_fn = remote_index_fn or sp._remote_index
@@ -1181,21 +1193,32 @@ def sync_var(
     remote_items = {r: v[1] for r, v in remote_idx.items()}
 
     results: dict = {
-        "pushed": [], "pulled": [], "skipped": 0,
+        "pushed": [], "pulled": [], "skipped": 0, "token_refreshes": 0,
         "local": str(base), "remote": remote_base, "core_only": core_only,
     }
+    since = 0
     for rel, action in plan_var_sync(local_index, remote_times, core_only=core_only, sp=sp):
         if action == "skip":
             results["skipped"] += 1
             continue
         local_path = os.path.join(str(base), rel.replace("/", os.sep))
         remote_file = f"{remote_base}/{rel}"
-        if action == "push":
-            push_fn(drive_id, local_path, remote_file, token)
-            results["pushed"].append(rel)
-        else:
-            pull_fn(drive_id, remote_items.get(rel), remote_file, local_path, token)
-            results["pulled"].append(rel)
+        if token_refresh and refresh_every and since >= refresh_every:  # 寿命前に先回り更新
+            token = token_refresh(); since = 0; results["token_refreshes"] += 1
+        for attempt in range(2):
+            try:
+                if action == "push":
+                    push_fn(drive_id, local_path, remote_file, token)
+                else:
+                    pull_fn(drive_id, remote_items.get(rel), remote_file, local_path, token)
+                break
+            except Exception as exc:  # 401(失効)は再取得して1回だけ再試行
+                if token_refresh and attempt == 0 and _is_token_expired(exc):
+                    token = token_refresh(); since = 0; results["token_refreshes"] += 1
+                    continue
+                raise
+        results["pushed" if action == "push" else "pulled"].append(rel)
+        since += 1
     return results
 
 

@@ -561,6 +561,19 @@ def cmd_expense(args: argparse.Namespace) -> int:
         print(f"[expense] push 完了: {n} ファイル(SharePoint master を更新)")
         return 0
 
+    if cmd == "sync-var":
+        try:
+            results = ep.sync_var(core_only=args.core_only)
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        scope = "状態の核" if args.core_only else "フル"
+        print(
+            f"[expense] var 同期({scope}) {results['local']} ↔ {results['remote']}: "
+            f"push {len(results['pushed'])} / pull {len(results['pulled'])} / skip {results['skipped']}"
+        )
+        return 0
+
     if cmd == "status":
         st = ep.status()
         print(
@@ -684,7 +697,7 @@ def cmd_expense(args: argparse.Namespace) -> int:
 
     print(
         "usage: ac expense "
-        "refdata|masters|pull|split|process|push|register|import-past|revise-past|"
+        "refdata|masters|pull|sync-var|split|process|push|register|import-past|revise-past|"
         "clean-inbox|notify|status|drafts|csv|xlsx",
         file=sys.stderr,
     )
@@ -772,6 +785,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--show", action="store_true", help="取得した費目/税区分の名称一覧も表示"
     )
     exp_sub.add_parser("pull", help="SharePoint の expense-inbox を var/expense/raw へ取得")
+    pe_syncvar = exp_sub.add_parser(
+        "sync-var",
+        help="var を SharePoint(Expense/Var)と双方向同期(別PCで作業継続。既定フル)",
+    )
+    pe_syncvar.add_argument(
+        "--core-only", action="store_true",
+        help="状態の核(台帳/サイドカー/refdata/下書き/murc/スナップショット)だけ同期(画像除外・軽量)",
+    )
     pe_split = exp_sub.add_parser(
         "split",
         help="複数レシート PDF を1ファイル1レシートに分割(サイドカー必須・既定ドライラン)",

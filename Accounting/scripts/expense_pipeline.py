@@ -1108,6 +1108,97 @@ def push_xlsx(local_xlsx: str | Path) -> str:
     return remote_file
 
 
+# --- var ↔ SharePoint フル同期(別PCでの作業継続 — BL-AC-030)-----------------------------
+
+def _is_var_core(rel: str) -> bool:
+    """状態の核(再現不可で `--core-only` 時の同期対象)か。rel は expense_root 基準('/'区切り)。
+
+    上書き/追記型で API・再処理から復元できないもの: 台帳・サイドカー・前期実績・下書き・分割スペック・
+    為替表(murc)・過去分の MF 現値スナップショット(*.mf.json)。証憑画像(raw/processed/past)は
+    Master/import-past から再取得できるため核には含めない。
+    """
+    name = rel.rsplit("/", 1)[-1]
+    if rel == "ledger.json":
+        return True
+    if rel.startswith(("extracted/", "refdata/", "drafts/", "split/")):
+        return True
+    if name.startswith("murc_") and name.endswith(".xls"):
+        return True
+    if name.endswith(".mf.json"):  # 過去分の MF 現値スナップショット(状態)
+        return True
+    return False
+
+
+def plan_var_sync(local_index: dict, remote_times: dict, *, core_only: bool, sp=None) -> list:
+    """ローカル/遠隔の {rel: mtime} から同期アクション [(rel, action)] を決める(純粋)。
+
+    plan は shared.sharepoint.plan_sync(追加型・mtime newer-wins)に委譲。`core_only` は状態の核に限定。
+    """
+    sp = sp or _shared_sp()
+    if core_only:
+        local_index = {r: m for r, m in local_index.items() if _is_var_core(r)}
+        remote_times = {r: m for r, m in remote_times.items() if _is_var_core(r)}
+    return sp.plan_sync(local_index, remote_times)
+
+
+def var_remote_base(cfg: dict, base: Path) -> str:
+    """var の SharePoint リモートベース(`Expense/Var/<フォルダ名>`)。年度別フォルダも名前で分離保持。"""
+    root = expense_remote(cfg, "var", "Expense/Var")
+    return f"{root}/{base.name}"
+
+
+def sync_var(
+    *,
+    core_only: bool = False,
+    connect=None,
+    local_index_fn=None,
+    remote_index_fn=None,
+    push_fn=None,
+    pull_fn=None,
+) -> dict:
+    """現在の expense_root()(EXPENSE_VAR_DIR 尊重)を SharePoint `Expense/Var/<名>` と双方向同期。
+
+    mtime newer-wins・追加型(削除は伝播しない)。`core_only=True` は状態の核(_is_var_core)だけ。
+    `connect`/`*_fn` はテストで注入可(無ければ実 SharePoint へ接続)。初回は遠隔未作成でも push 側で
+    フォルダを自動作成する。
+    """
+    sp = _shared_sp()
+    base = expense_root()
+    if connect is not None:
+        drive_id, remote_base, token = connect(base)
+    else:
+        sp, cfg, token, drive_id = _sp_drive(sp)
+        remote_base = var_remote_base(cfg, base)
+
+    local_index_fn = local_index_fn or sp._local_index
+    remote_index_fn = remote_index_fn or sp._remote_index
+    push_fn = push_fn or sp._sync_push_file
+    pull_fn = pull_fn or sp._sync_pull_file
+
+    local_index = local_index_fn(str(base))
+    remote_idx = remote_index_fn(drive_id, remote_base, token)  # {rel: (mtime, item)}
+    remote_times = {r: v[0] for r, v in remote_idx.items()}
+    remote_items = {r: v[1] for r, v in remote_idx.items()}
+
+    results: dict = {
+        "pushed": [], "pulled": [], "skipped": 0,
+        "local": str(base), "remote": remote_base, "core_only": core_only,
+    }
+    for rel, action in plan_var_sync(local_index, remote_times, core_only=core_only, sp=sp):
+        if action == "skip":
+            results["skipped"] += 1
+            continue
+        local_path = os.path.join(str(base), rel.replace("/", os.sep))
+        remote_file = f"{remote_base}/{rel}"
+        if action == "push":
+            push_fn(drive_id, local_path, remote_file, token)
+            results["pushed"].append(rel)
+        else:
+            pull_fn(drive_id, remote_items.get(rel), remote_file, local_path, token)
+            results["pulled"].append(rel)
+    return results
+
+
 def _sp_delete(sp, drive_id, remote_path: str, token) -> None:
     """SharePoint のファイルを削除。DELETE は 204(本文なし)を返すため JSON parse しない。"""
     import urllib.parse

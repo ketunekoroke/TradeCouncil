@@ -16,7 +16,8 @@
     "_note": "経費取込の SharePoint パス。drive(ドキュメント)直下からの相対で、root/workspace は付けない。",
     "root": "Expense",
     "inbox": "Expense/Inbox",
-    "master": "Expense/Master"
+    "master": "Expense/Master",
+    "var": "Expense/Var"
   },
   "git_mirror": {
     "branch": "main",

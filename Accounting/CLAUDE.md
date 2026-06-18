@@ -54,8 +54,8 @@ Git の pre-commit フック / GitHub Actions(CI)/ PreToolUse フックで強制
 **ユーザーからの依頼文言(定型文)と Claude が回す手順・役割分担(認可コード・フロー含む)は
 [docs/runbook-expense.md](docs/runbook-expense.md) が正本。** 主な依頼文言: 「Inbox から経費を登録して」
 (取込→登録)/「クラウド経費の認証を更新して」(トークン再認可)/「FY20XX(…)を別フォルダで取り込んで」
-(過年度取込)/「定期支払いを一覧化して」/「過去分の OCR 誤りを補正して」。**不可逆操作は必ずドライラン
-提示 → ユーザー承認の後に `--confirm`**。
+(過年度取込)/「定期支払いを一覧化して」/「過去分の OCR 誤りを補正して」/「var を同期して」(別PCで
+作業継続=`Expense/Var` と双方向同期)。**不可逆操作は必ずドライラン提示 → ユーザー承認の後に `--confirm`**。
 
 [scenarios/monthly-review.md](scenarios/monthly-review.md) のプロトコルに従う。証憑の取り込み → 抽出 →
 検証ゲート → Teams 確認 → 経費登録 → 会計連携 → 仕訳調整。LLM 召喚は共通層ブリッジ経由:

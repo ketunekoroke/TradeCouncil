@@ -637,3 +637,46 @@ def test_fetch_masters_handles_missing_office():
         get_office_id_fn=lambda pc, *, access_token=None: None,
     )
     assert summary.get("error")
+
+
+def test_is_var_core_filters_state_from_images():
+    # 状態の核(再現不可)= True、証憑画像/一時物 = False。
+    assert ep._is_var_core("ledger.json")
+    assert ep._is_var_core("extracted/2026-05-30_x.json")
+    assert ep._is_var_core("refdata/expense_usage.json")
+    assert ep._is_var_core("drafts/r.json")
+    assert ep._is_var_core("murc_2026.xls")
+    assert ep._is_var_core("past/past_abc.mf.json")  # MF現値スナップショット=状態
+    assert not ep._is_var_core("processed/2026-05-30_x.pdf")
+    assert not ep._is_var_core("past/past_abc.jpg")  # 画像本体
+    assert not ep._is_var_core("raw/scan.pdf")
+
+
+def test_plan_var_sync_core_only_excludes_images():
+    local = {"ledger.json": 100.0, "processed/a.jpg": 100.0, "raw/x.pdf": 100.0}
+    remote = {"drafts/d.json": 200.0}
+    full = dict(ep.plan_var_sync(local, remote, core_only=False))
+    assert full["ledger.json"] == "push"
+    assert full["processed/a.jpg"] == "push"  # 遠隔に無い → push
+    assert full["drafts/d.json"] == "pull"  # ローカルに無い → pull
+    core = dict(ep.plan_var_sync(local, remote, core_only=True))
+    assert core == {"ledger.json": "push", "drafts/d.json": "pull"}  # 画像/raw は対象外
+
+
+def test_sync_var_orchestration_injected():
+    pushes, pulls = [], []
+    res = ep.sync_var(
+        connect=lambda base: ("drv", "Expense/Var/expense", "tok"),
+        local_index_fn=lambda b: {"ledger.json": 100.0, "processed/a.jpg": 100.0},
+        remote_index_fn=lambda d, rb, t: {
+            "ledger.json": (50.0, {"id": "r1"}),  # local newer → push
+            "drafts/d.json": (200.0, {"id": "r2"}),  # local 無し → pull
+        },
+        push_fn=lambda d, lp, rf, t: pushes.append(rf),
+        pull_fn=lambda d, it, rf, lp, t: pulls.append((rf, it)),
+    )
+    assert set(res["pushed"]) == {"ledger.json", "processed/a.jpg"}
+    assert res["pulled"] == ["drafts/d.json"]
+    assert res["remote"] == "Expense/Var/expense"
+    assert "Expense/Var/expense/ledger.json" in pushes
+    assert pulls == [("Expense/Var/expense/drafts/d.json", {"id": "r2"})]  # remote item を pull に渡す

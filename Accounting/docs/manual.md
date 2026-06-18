@@ -12,6 +12,9 @@
 
 ## 経費レシート取込(`ac expense` / BL-AC-020)
 
+> **Claude への依頼で回す場合の定型文(依頼文言)と役割分担(認可コード・フロー含む)は
+> [runbook-expense.md](runbook-expense.md) を参照。** 本節は CLI サブコマンドの仕様。
+
 SharePoint をマスタデータとし、Claude Code が手動で回す半自動フロー(下書きまで。実 API 登録は後段)。
 起動は `cd Accounting; ..\.venv\Scripts\python.exe -m scripts.cli expense <sub>`。
 

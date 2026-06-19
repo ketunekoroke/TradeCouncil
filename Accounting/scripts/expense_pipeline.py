@@ -618,6 +618,33 @@ def _emit_revised_notify(e: ingest.LedgerEntry, change_dicts: list[dict], *, sen
         return False
 
 
+def cloud_dupe_index(
+    pc, *, date_from: str, date_to: str, list_fn=None, get_office_id_fn=None,
+    access_token: str | None = None, max_pages: int = 200,
+) -> set:
+    """クラウド経費の既存明細から `(取引日, 原通貨額int)` の集合を返す(重複突合の正データ)。
+
+    ローカル台帳でなく **クラウド実体** と金額+日付で突合するための索引。register に渡すと、同額同日が
+    クラウドに在る明細は登録せず「要個別確認」として skip する(2重登録防止・ステイル状態の影響を受けない)。
+    """
+    list_fn = list_fn or mf_expense_api.list_my_ex_transactions
+    if access_token is None:
+        access_token = oauth.get_access_token(pc)
+    gid = get_office_id_fn or mf_expense_api.get_office_id
+    office_id = gid(pc, access_token=access_token)
+    txs = list_fn(pc, office_id, date_from=date_from, date_to=date_to,
+                  access_token=access_token, max_pages=max_pages)
+    keys: set = set()
+    for tx in txs:
+        cur = revise.MFCurrent.from_tx(tx)
+        if cur.date and cur.value not in (None, ""):
+            try:
+                keys.add((cur.date[:10], int(round(float(cur.value)))))
+            except (ValueError, TypeError):
+                pass
+    return keys
+
+
 def register_drafts(
     pc,
     *,
@@ -628,12 +655,15 @@ def register_drafts(
     get_office_id_fn=None,
     access_token: str | None = None,
     notify_fn=None,
+    cloud_keys: set | None = None,
 ) -> dict:
     """ゲート合格の下書きをクラウド経費へ登録(POST ex_transactions + receipt_input=証憑/電帳法)。
 
     `confirm=False` はドライラン(送信せずプレビュー)。本番送信は `confirm=True` 必須。サイドカーから
     ポリシーを再適用し、費目/税区分は usage の名前→ID で解決(ID 無は skip → refdata 実行 or WEB)。
     成功した明細は ledger を `registered` に更新し MF 明細 ID を保存する。
+    `cloud_keys`(→ `cloud_dupe_index`)を渡すと、**クラウドに同額同日が在る明細は登録せず
+    「要個別確認」で skip**(ローカル台帳の重複判定に頼らずクラウド実体と突合)。
     """
     create_fn = create_fn or mf_expense_api.create_ex_transaction
     send_fn = _notifier(notify_fn)
@@ -660,6 +690,17 @@ def register_drafts(
             return results
 
     for e in targets:
+        if cloud_keys is not None and e.date and e.amount:  # クラウド実体と金額+日付で突合
+            try:
+                key = (e.date[:10], int(round(float(e.amount))))
+            except (ValueError, TypeError):
+                key = None
+            if key and key in cloud_keys:
+                results["skipped"].append({
+                    "receipt_id": e.receipt_id,
+                    "reason": f"クラウドに同額同日あり(要個別確認): {e.date} ¥{e.amount} {e.payee[:20]}",
+                })
+                continue
         sc = sidecar_path(e.source_file)
         if not sc.is_file():
             results["errors"].append(

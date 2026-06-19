@@ -612,10 +612,25 @@ def cmd_expense(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
+        cloud_keys = None
+        if getattr(args, "cloud_dedup", False):
+            led = ep.ingest.Ledger.load(ep.ledger_path())
+            dts = [e.date for e in led.entries if e.mf_status != "registered" and e.date]
+            df = (min(dts) if dts else ep.current_fy_range()[0])
+            dt = (max(dts) if dts else ep.current_fy_range()[1])
+            try:
+                cloud_keys = ep.cloud_dupe_index(pc, date_from=df, date_to=dt)
+            except oauth.ReloginRequired as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            except (urllib.error.URLError, ValueError, SystemExit) as exc:
+                print(f"error: クラウド突合の取得に失敗: {_err(exc)}", file=sys.stderr)
+                return 1
+            print(f"[expense] クラウド突合キー {len(cloud_keys)} 件({df}〜{dt})で重複判定")
         try:
             results = ep.register_drafts(
                 pc, confirm=args.confirm, receipt_id=getattr(args, "id", None),
-                use_original=args.original,
+                use_original=args.original, cloud_keys=cloud_keys,
             )
         except oauth.ReloginRequired as exc:
             print(str(exc), file=sys.stderr)
@@ -818,6 +833,10 @@ def build_parser() -> argparse.ArgumentParser:
     pe_reg.add_argument("--id", help="receipt_id の部分一致で対象を絞る")
     pe_reg.add_argument(
         "--original", action="store_true", help="証憑に原本(_original)を使う(既定: トリミング後)"
+    )
+    pe_reg.add_argument(
+        "--cloud-dedup", action="store_true",
+        help="クラウド実体と金額+日付で突合し、同額同日は登録せず『要個別確認』でskip(ローカル台帳でなくクラウドを正)",
     )
     pe_imp = exp_sub.add_parser(
         "import-past", help="今期の既存クラウド経費明細を取込み証憑をDL(過去分確認の前段)"

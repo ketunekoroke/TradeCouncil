@@ -736,3 +736,28 @@ def test_sync_var_time_based_token_refresh():
     )
     assert res["token_refreshes"] >= 1
     assert refreshed["n"] >= 1
+
+
+def test_cloud_dupe_index_builds_date_amount_set():
+    txs = [{"recognized_at": "2026-05-30", "value": 3278},
+           {"recognized_at": "2026-04-22", "value": 1078.0}]
+    keys = ep.cloud_dupe_index(
+        _pc_expense(), date_from="2026-01-01", date_to="2026-12-31",
+        list_fn=lambda pc, oid, **k: txs,
+        get_office_id_fn=lambda pc, **k: "of1", access_token="tok",
+    )
+    assert ("2026-05-30", 3278) in keys
+    assert ("2026-04-22", 1078) in keys
+
+
+def test_register_skips_when_cloud_has_same_date_amount():
+    _write_raw("z_cloud.pdf")
+    _write_sidecar("z_cloud.pdf", date="2026-05-30", payee="Adobe", amount="3278",
+                   currency="JPY", ex_item="通信費", excise="課税仕入 10%")
+    ep.process_all(approve_overwrite=True)
+    # クラウドに (2026-05-30, 3278) が在る → 登録せず要個別確認で skip
+    res = ep.register_drafts(_pc_expense(), confirm=False, cloud_keys={("2026-05-30", 3278)})
+    assert any("クラウドに同額同日" in x.get("reason", "") for x in res["skipped"]), res["skipped"]
+    # cloud_keys 無し(従来)なら dry-run プレビューに乗る(skip理由が別)
+    res2 = ep.register_drafts(_pc_expense(), confirm=False, cloud_keys=set())
+    assert not any("クラウドに同額同日" in x.get("reason", "") for x in res2["skipped"])

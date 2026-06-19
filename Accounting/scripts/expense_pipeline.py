@@ -18,6 +18,7 @@ import json
 import mimetypes
 import os
 import sys
+import time
 import urllib.error
 from pathlib import Path
 
@@ -1163,13 +1164,16 @@ def sync_var(
     pull_fn=None,
     token_refresh=None,
     refresh_every: int = 150,
+    refresh_interval_sec: float = 2400.0,
+    clock=None,
 ) -> dict:
     """現在の expense_root()(EXPENSE_VAR_DIR 尊重)を SharePoint `Expense/Var/<名>` と双方向同期。
 
     mtime newer-wins・追加型(削除は伝播しない)。`core_only=True` は状態の核(_is_var_core)だけ。
-    長時間同期で **Graph トークンが失効(401)しても再取得して継続**する(client_credentials=都度新規。
-    `refresh_every` 件ごとに先回り再取得 + 401 検知時に再取得して1回再試行)。`connect`/`*_fn`/`token_refresh`
-    はテストで注入可。初回は遠隔未作成でも push 側でフォルダを自動作成する。
+    長時間同期で **Graph トークンが失効(401)しても再取得して継続**する(client_credentials=都度新規)。
+    寿命前の先回り更新は **時間ベース**(`refresh_interval_sec`=既定40分。スロットリングで処理が遅くても
+    確実に更新)+ 件数ベース(`refresh_every`)の二段で、加えて 401 検知時にも再取得して1回再試行する。
+    `connect`/`*_fn`/`token_refresh`/`clock` はテストで注入可。初回は遠隔未作成でも push 側でフォルダを作る。
     """
     sp = _shared_sp()
     base = expense_root()
@@ -1196,15 +1200,29 @@ def sync_var(
         "pushed": [], "pulled": [], "skipped": 0, "token_refreshes": 0,
         "local": str(base), "remote": remote_base, "core_only": core_only,
     }
+    clock = clock or time.monotonic
     since = 0
+    last_refresh = clock()
+
+    def _refresh(now):
+        nonlocal token, since, last_refresh
+        token = token_refresh()
+        since = 0
+        last_refresh = now
+        results["token_refreshes"] += 1
+
     for rel, action in plan_var_sync(local_index, remote_times, core_only=core_only, sp=sp):
         if action == "skip":
             results["skipped"] += 1
             continue
         local_path = os.path.join(str(base), rel.replace("/", os.sep))
         remote_file = f"{remote_base}/{rel}"
-        if token_refresh and refresh_every and since >= refresh_every:  # 寿命前に先回り更新
-            token = token_refresh(); since = 0; results["token_refreshes"] += 1
+        now = clock()
+        if token_refresh and (  # 寿命前に先回り更新(時間 or 件数)
+            (refresh_interval_sec and now - last_refresh >= refresh_interval_sec)
+            or (refresh_every and since >= refresh_every)
+        ):
+            _refresh(now)
         for attempt in range(2):
             try:
                 if action == "push":
@@ -1214,7 +1232,7 @@ def sync_var(
                 break
             except Exception as exc:  # 401(失効)は再取得して1回だけ再試行
                 if token_refresh and attempt == 0 and _is_token_expired(exc):
-                    token = token_refresh(); since = 0; results["token_refreshes"] += 1
+                    _refresh(clock())
                     continue
                 raise
         results["pushed" if action == "push" else "pulled"].append(rel)

@@ -706,3 +706,33 @@ def test_sync_var_refreshes_token_on_401():
     assert calls["refresh"] == 1  # 401 検知で再取得
     assert calls["push"] == 2  # 失敗1 + 再試行成功1
     assert res["token_refreshes"] == 1
+
+
+def test_sync_var_time_based_token_refresh():
+    # クロックを進め、件数が少なくても時間経過で先回りトークン更新が起きることを検証。
+    ticks = iter([0.0, 0.0, 5000.0])  # 2件目の前に40分超(2400s)経過
+    refreshed = {"n": 0}
+
+    def clock():
+        try:
+            return next(ticks)
+        except StopIteration:
+            return 9999.0
+
+    def refresh():
+        refreshed["n"] += 1
+        return "new"
+
+    res = ep.sync_var(
+        connect=lambda base: ("drv", "Expense/Var/expense", "old"),
+        local_index_fn=lambda b: {"a.txt": 1.0, "b.txt": 1.0},
+        remote_index_fn=lambda d, rb, t: {},
+        push_fn=lambda *a, **k: None,
+        pull_fn=lambda *a, **k: None,
+        token_refresh=refresh,
+        refresh_interval_sec=2400.0,
+        refresh_every=0,  # 件数ベースは無効化し時間ベースのみ検証
+        clock=clock,
+    )
+    assert res["token_refreshes"] >= 1
+    assert refreshed["n"] >= 1

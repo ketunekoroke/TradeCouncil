@@ -600,6 +600,26 @@ def cmd_expense(args: argparse.Namespace) -> int:
         print(f"[expense] CSV 書き出し: {n} 件 → {out}")
         return 0
 
+    if cmd == "review":
+        try:
+            out, n = ep.write_review(getattr(args, "out", None), with_links=not args.no_links)
+        except SystemExit as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"[expense] 登録前レビュー: 未登録 {n} 件 → {out}(証憑は SharePoint リンク)")
+        if args.push and n:
+            try:
+                remote = ep.push_xlsx(out)  # 単一ファイルを ドキュメント/Expense/ へ
+                print(f"  → SharePoint ドキュメント/{remote}(ブラウザで開いて確認・リンククリックで証憑)")
+            except SystemExit as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+        # コンパクトに費目別の件数も表示
+        from collections import Counter
+        c = Counter(r["ex_item"] or "(未確定)" for r in ep.review_rows())
+        print("  費目別:", " / ".join(f"{k} {v}" for k, v in c.most_common()))
+        return 0
+
     if cmd == "register":
         from core import moneyforward as mf
         from core import oauth
@@ -712,7 +732,7 @@ def cmd_expense(args: argparse.Namespace) -> int:
 
     print(
         "usage: ac expense "
-        "refdata|masters|pull|sync-var|split|process|push|register|import-past|revise-past|"
+        "refdata|masters|pull|sync-var|split|process|review|push|register|import-past|revise-past|"
         "clean-inbox|notify|status|drafts|csv|xlsx",
         file=sys.stderr,
     )
@@ -877,6 +897,12 @@ def build_parser() -> argparse.ArgumentParser:
     pe_drafts.add_argument("--id", help="receipt_id の部分一致で絞る")
     pe_csv = exp_sub.add_parser("csv", help="下書きを CSV に書き出す(Excel 用 UTF-8 BOM)")
     pe_csv.add_argument("--out", help="出力先(既定: var/expense/drafts/expense_drafts.csv)")
+    pe_review = exp_sub.add_parser(
+        "review", help="登録前レビュー: 未登録明細を一覧(証憑のSharePointリンク付き Markdown)"
+    )
+    pe_review.add_argument("--out", help="出力先(既定: var/expense/export/review.md)")
+    pe_review.add_argument("--no-links", action="store_true", help="証憑のSharePointリンクを付けない(高速)")
+    pe_review.add_argument("--push", action="store_true", help="生成後 SharePoint ドキュメント/Expense/ へ push")
     p_exp.set_defaults(func=cmd_expense)
 
     return parser

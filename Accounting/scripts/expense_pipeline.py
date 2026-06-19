@@ -1091,6 +1091,81 @@ def write_drafts_csv(out_path: str | Path | None = None) -> tuple[Path, int]:
     return out, len(drafts)
 
 
+# --- 登録前レビュー(人が内容をリスト確認 + 証憑の SharePoint リンク)----------------------
+
+def review_rows() -> list[dict]:
+    """未登録(非 past_)の下書きを人が確認するための行リスト(日付/取引先/金額/費目/税区分/フラグ/証憑)。"""
+    led = ingest.Ledger.load(ledger_path())
+    rows: list[dict] = []
+    for e in led.entries:
+        if e.mf_status == "registered" or e.receipt_id.startswith(PAST_PREFIX):
+            continue
+        draft = _load_draft_file(e.draft_path)
+        pol = draft.get("policy", {})
+        gate = draft.get("gate") or []
+        flags = list(pol.get("flags") or [])
+        flags += [
+            g.get("message", "") for g in gate
+            if isinstance(g, dict) and g.get("level") in ("error", "warn")
+        ]
+        rows.append({
+            "receipt_id": e.receipt_id, "date": e.date, "payee": e.payee,
+            "amount": str(e.amount), "currency": e.currency,
+            "jpy": (e.jpy_amount or str(e.amount)), "ex_item": e.ex_item or "",
+            "excise": e.excise or "", "confidence": draft.get("confidence"),
+            "source_file": e.source_file, "flags": [f for f in flags if f],
+        })
+    rows.sort(key=lambda r: (r["ex_item"], r["date"] or ""))
+    return rows
+
+
+def receipt_links(source_files, *, drive=None) -> dict:
+    """source_file → SharePoint webUrl。Inbox→Master の順で名前一致を探す(各フォルダ1回 list)。"""
+    sp, cfg, token, drive_id = drive or _sp_drive(_shared_sp())
+    name_url: dict = {}
+    for key, default in (("inbox", "Expense/Inbox"), ("master", "Expense/Master")):
+        try:
+            for it in sp._list_children(drive_id, expense_remote(cfg, key, default), token):
+                if not it.get("folder"):
+                    name_url.setdefault(it["name"], it.get("webUrl"))
+        except Exception:  # フォルダ未存在等は無視(リンク無しで続行)
+            pass
+    return {sf: name_url.get(sf) for sf in source_files if sf}
+
+
+def write_review(out_path: str | Path | None = None, *, with_links: bool = True, link_fn=None) -> tuple:
+    """登録前レビューを Markdown 表(証憑の SharePoint リンク付き)に書き出す。(出力先, 件数) を返す。"""
+    rows = review_rows()
+    links: dict = {}
+    if with_links and rows:
+        links = (link_fn or receipt_links)([r["source_file"] for r in rows])
+    from collections import Counter
+
+    by_item = Counter(r["ex_item"] or "(未確定)" for r in rows)
+    head = [
+        f"# 経費 登録前レビュー(未登録 {len(rows)} 件)",
+        "",
+        "費目内訳: " + " / ".join(f"{k} {c}" for k, c in by_item.most_common()),
+        "",
+        "| # | 日付 | 取引先 | 金額 | 費目 | 税区分 | 確信 | 要確認/フラグ | 証憑 |",
+        "|---:|---|---|---:|---|---|---:|---|---|",
+    ]
+    body = []
+    for i, r in enumerate(rows, 1):
+        link = links.get(r["source_file"])
+        rcpt = f"[証憑を開く]({link})" if link else (r["source_file"] or "-")
+        fl = "; ".join(r["flags"])[:70] or "-"
+        conf = ("" if r["confidence"] is None else f"{r['confidence']}")
+        body.append(
+            f"| {i} | {r['date']} | {r['payee'][:26]} | {r['amount']} {r['currency']} | "
+            f"{r['ex_item']} | {r['excise']} | {conf} | {fl} | {rcpt} |"
+        )
+    out = Path(out_path) if out_path else (export_dir() / "review.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(head + body) + "\n", encoding="utf-8")
+    return out, len(rows)
+
+
 # --- SharePoint(shared)pull/push ---------------------------------------------------------
 
 def _shared_sp():

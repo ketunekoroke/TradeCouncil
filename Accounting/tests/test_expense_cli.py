@@ -761,3 +761,19 @@ def test_register_skips_when_cloud_has_same_date_amount():
     # cloud_keys 無し(従来)なら dry-run プレビューに乗る(skip理由が別)
     res2 = ep.register_drafts(_pc_expense(), confirm=False, cloud_keys=set())
     assert not any("クラウドに同額同日" in x.get("reason", "") for x in res2["skipped"])
+
+
+def test_review_rows_and_write(tmp_path):
+    _write_raw("rv.pdf")
+    _write_sidecar("rv.pdf", date="2026-05-30", payee="Adobe", amount="3278",
+                   currency="JPY", ex_item="通信費", excise="課税仕入 10%")
+    ep.process_all(approve_overwrite=True)
+    rows = ep.review_rows()
+    assert any(r["payee"] == "Adobe" and r["ex_item"] == "通信費" for r in rows)
+    out, n = ep.write_review(
+        tmp_path / "review.md", with_links=True,
+        link_fn=lambda sfs: {sf: f"https://sp/{sf}" for sf in sfs},
+    )
+    txt = out.read_text(encoding="utf-8")
+    assert n >= 1
+    assert "登録前レビュー" in txt and "証憑を開く" in txt and "https://sp/rv.pdf" in txt
